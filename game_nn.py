@@ -72,7 +72,7 @@ class gameNet(object):
       self.params[k] = v.astype(dtype)
      
  
-  def loss(self, X, y=None):
+  def loss(self, X, reward=None):
     """
     Evaluate loss and gradient for the three-layer convolutional network.
     
@@ -97,16 +97,16 @@ class gameNet(object):
     affine1_relu_out, affine1_relu_cache = affine_relu_forward(conv_relu_pool_out, W2, b2)
     scores, affine2_cache = affine_forward(affine1_relu_out, W3, b3)
 
-    if y is None:
+    if reward is None:
       return scores
     
     loss, grads = 0, {}
  
-    loss, dsoftmax = softmax_loss(scores, y)
+    # loss, dsoftmax = softmax_loss(scores, y)
     # add L2 regularization
     loss += 0.5 * self.reg * (np.sum(W1**2) + np.sum(W2**2) + np.sum(W3**2))
 
-    daffine2 = affine_backward(dsoftmax, affine2_cache)
+    daffine2 = affine_backward(reward, affine2_cache)
     daffine1_relu = affine_relu_backward(daffine2[0], affine1_relu_cache)
     dconv_relu_pool = conv_relu_pool_backward(daffine1_relu[0], conv_relu_pool_cache)
 
