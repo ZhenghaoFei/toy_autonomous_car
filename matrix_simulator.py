@@ -9,7 +9,7 @@ def plot_map(map_matrix, car_location):
     map_matrix[car_location] = 3 # use three to present car
     plt.imshow(map_matrix, interpolation='none')
 
-def simulator(map_matrix, initial_car_location, car_location = None, action = None):
+def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, car_location = None, action = None):
     feedback = np.zeros(4) # default feedback 
     env =  np.zeros([10, 10])	
     env_distance = 3 # env use car as center, sensing distance
@@ -49,7 +49,8 @@ def simulator(map_matrix, initial_car_location, car_location = None, action = No
     env_y = car_y + env_distance
     map_env[env_x, env_y] = 3
     env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
-    
+    goal_distance = np.sqrt(np.sum((np.asarray(goal_location) - np.asarray(car_location))**2)) # the distance from goal
+    print goal_distance
     # check status
     if map_matrix[car_location] == 1:
         print "collision"
@@ -62,12 +63,18 @@ def simulator(map_matrix, initial_car_location, car_location = None, action = No
         env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
 
     elif map_matrix[car_location] == 0:
-        feedback[action] = 0 # good moving feedback
+        improve = last_goaldistance - goal_distance # whether approach goal
+        if improve > 0:
+            feedback[action] = 0.01 # good moving feedback
+        elif improve < 0:
+            feedback[action] = -0.5 # bad moving feedback
+
+
     elif map_matrix[car_location] == 2:
         print "congratulations! You arrive destination"
         feedback[action] = 1 # get goal feedback
 
-    return car_location, feedback, env
+    return car_location, feedback, env, goal_distance
 
 # map_matrix = np.array\
 #      ([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.,  0.,  0.],

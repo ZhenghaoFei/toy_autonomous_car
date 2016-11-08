@@ -27,37 +27,41 @@ map_matrix = np.array\
        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  1.,  1.,  1.],
-       [ 0.,  0.,  0.,  1.,  0.,  0.,  0.,  0.,  0.,  2.],
+       [ 0.,  0.,  0.,  1.,  0.,  0.,  0.,  0.,  0.,  1.],
        [ 0.,  0.,  0.,  1.,  1,  1.,  1.,  1.,  1.,  1.],
        [ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.]])
 
+goal_location = 7, 8 # define goal location
+map_matrix[goal_location] = 2
 initial_car_location = 1, 1 # initial car location x and y
 car_location = initial_car_location
 car_location_save =[]
 
 # train
 learning_rate = 1e-4
-car_location_save = train_game_nn(model, map_matrix, initial_car_location,  learning_rate,max_iter=100)
+_ = train_game_nn(model, map_matrix, initial_car_location, goal_location, learning_rate, max_iter=10000)
 
 # test
-# car_location, feedback, env = simulator(map_matrix, initial_car_location) # initial env
-# for i in range(20):
-#     action, h_cache, env_cache =policy_forward(env, model)
-#     car_location, feedback, env = simulator(map_matrix, initial_car_location, car_location, action)
-#     car_location_save.append(car_location)
-#     if np.any(feedback < 0):
-#         print "game end"
-#         break
-#     if np.any(feedback < 0):
-#         print "game end"
-#         break
+goal_distance = 0
+car_location_save =[]
+car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance) # initial env
+for i in range(20):
+    action, h_cache, env_cache = policy_forward(env, model)
+    car_location, feedback, env, _ = simulator(map_matrix, initial_car_location, goal_location, goal_distance, car_location, action)
+    car_location_save.append(car_location)
+    if np.any(feedback == 1):
+        print "game end"
+        break
+    if np.any(feedback == -1):
+        print "game end"
+        break
 
 # plot
 fig, ax = plt.subplots()  
+print len(car_location_save)
 def animate(i):
     map_plot = np.copy(map_matrix)
     map_plot[car_location_save[i]] = 3
     ax.imshow(map_plot, interpolation='none')
-
-anim = animation.FuncAnimation(fig, animate, frames = len(car_location_save))
+anim = animation.FuncAnimation(fig, animate, frames = len(car_location_save) )
 plt.show()

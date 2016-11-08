@@ -39,13 +39,15 @@ def load_model():
     return model
 
 # training process
-def train_game_nn(model, map_matrix, initial_car_location, learning_rate, max_iter = 10):
+def train_game_nn(model, map_matrix, initial_car_location, goal_location, learning_rate, max_iter = 10):
     car_location = initial_car_location
     car_location_save =[]
-    car_location, feedback, env = simulator(map_matrix, initial_car_location) # initial env
+    goal_distance = 10000
+
+    car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance) # initial env
     for i in range(max_iter):
         action, h_cache, env_cache =policy_forward(env, model)
-        car_location, feedback, env = simulator(map_matrix, initial_car_location, car_location, action)
+        car_location, feedback, env, goal_distance = simulator(map_matrix, initial_car_location, goal_location, goal_distance, car_location, action)
         car_location_save.append(car_location)
         gradient = policy_backward(h_cache, env_cache, feedback, model)
         sgd_update(model, gradient, learning_rate)
