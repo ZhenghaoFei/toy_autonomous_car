@@ -39,16 +39,23 @@ def load_model():
     return model
 
 # training process
-def train_game_nn(model, map_matrix, initial_car_location, goal_location, learning_rate, max_iter = 10):
-    car_location = initial_car_location
-    car_location_save =[]
+def train_game_nn(model, learning_rate, max_iter = 10):
+    dim1 = 10
+    dim2 = 10
+    probobility = 0.3
+    map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
     goal_distance = 10000
-
-    car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance) # initial env
+    step = 0
+    car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step) # initial env
     for i in range(max_iter):
         action, h_cache, env_cache =policy_forward(env, model)
-        car_location, feedback, env, goal_distance = simulator(map_matrix, initial_car_location, goal_location, goal_distance, car_location, action)
-        car_location_save.append(car_location)
+        car_location, feedback, env, goal_distance, step, reset = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
+        if reset:
+            print "reset"
+            map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+            step = 0
+            car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step) # initial env
+
+        # car_location_save.append(car_location)
         gradient = policy_backward(h_cache, env_cache, feedback, model)
         sgd_update(model, gradient, learning_rate)
-    return car_location_save

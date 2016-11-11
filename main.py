@@ -1,16 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from game_nn import *
+from matrix_simulator import *
 
 # hyperparameters
 H = 200 # number of hidden layer neurons
 batch_size = 1 # every how many episodes to do a param update?
 gamma = 0.99 # discount factor for reward
 decay_rate = 0.99 # decay factor for RMSProp leaky sum of grad^2
-resume = False # resume from previous checkpoint?
+resume = True # resume from previous checkpoint?
 
 # model initialization
-D = 10 * 10 # input dimensionality
+D = 12 * 12 # input dimensionality
 if resume:
 	model = load_model()
 else:
@@ -19,36 +20,40 @@ else:
 	model['W2'] = np.random.randn(H,4) / np.sqrt(H)
 
 # initialize environment
-map_matrix = np.array\
-     ([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.,  0.,  0.],
-       [ 1.,  0.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.],
-       [ 1.,  0.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.],
-       [ 1.,  1.,  1.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
-       [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
-       [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
-       [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  1.,  1.,  1.],
-       [ 0.,  0.,  0.,  1.,  0.,  0.,  0.,  0.,  0.,  1.],
-       [ 0.,  0.,  0.,  1.,  1,  1.,  1.,  1.,  1.,  1.],
-       [ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.]])
+# map_matrix = np.array\
+#      ([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.,  0.,  0.],
+#        [ 1.,  0.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 1.,  0.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 1.,  1.,  1.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  1.,  1.,  1.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  0.,  0.,  0.,  1.],
+#        [ 0.,  0.,  0.,  1.,  1,  1.,  1.,  1.,  1.,  1.],
+#        [ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.]])
 
-goal_location = 7, 8 # define goal location
-map_matrix[goal_location] = 2
-initial_car_location = 1, 1 # initial car location x and y
-car_location = initial_car_location
-car_location_save =[]
+
+
+# goal_location = 7, 8 # define goal location
+# map_matrix[goal_location] = 2
+# initial_car_location = 1, 1 # initial car location x and y
+# car_location = initial_car_location
+# car_location_save =[]
 
 # train
 learning_rate = 1e-4
-_ = train_game_nn(model, map_matrix, initial_car_location, goal_location, learning_rate, max_iter=1000000)
-
+train_game_nn(model, learning_rate, max_iter=5000000)
+save_model(model)
 # test
 print "start testing"
-goal_distance = 0
+map_matrix, initial_car_location, goal_location = random_map(10, 10, 0.3)
+step = 0
+goal_distance = 10000
 car_location_save =[]
-car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance) # initial env
+car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step) # initial env
 for i in range(20):
     action, h_cache, env_cache = policy_forward(env, model)
-    car_location, feedback, env, _ = simulator(map_matrix, initial_car_location, goal_location, goal_distance, car_location, action)
+    car_location, feedback, env, _, step = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
     car_location_save.append(car_location)
     if np.any(feedback == 1):
         print "game end"
