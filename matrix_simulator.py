@@ -9,7 +9,7 @@ def plot_map(map_matrix, car_location):
     map_matrix[car_location] = 3 # use three to present car
     plt.imshow(map_matrix, interpolation='none')
 
-def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, car_location = None, action = None):
+def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, car_location = None, action = None, verbos=False):
     feedback = np.zeros(4) # default feedback 
     env =  np.zeros([10, 10])	
     env_distance = 3 # env use car as center, sensing distance
@@ -33,17 +33,21 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
     # do action, move the car
     car_x, car_y = car_location
     if action == 0:
-        car_x -= 1    
-        print("up")
+        car_x -= 1
+        if verbos:    
+            print("up")
     elif action == 1:
         car_x += 1
-        print("down")
+        if verbos:    
+            print("down")
     elif action == 2:
         car_y += 1
-        print("right")
+        if verbos:    
+            print("right")
     elif action == 3:
         car_y -= 1
-        print("left")	
+        if verbos:    
+            print("left")	
     car_location = car_x, car_y
     env_x = car_x + env_distance
     env_y = car_y + env_distance
@@ -63,12 +67,12 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
 
     elif map_matrix[car_location] == 0:
-        improve = last_goaldistance - goal_distance # whether approach goal
-        if improve > 0:
-            feedback[action] = 0.01 # good moving feedback
-        elif improve < 0:
-            feedback[action] = -0.5 # bad moving feedback
-
+        # improve = last_goaldistance - goal_distance # whether approach goal
+        # if improve > 0:
+        #     feedback[action] = 0.01 # good moving feedback
+        # elif improve < 0:
+        #     feedback[action] = -0.5 # bad moving feedback
+        feedback[action] = -0.1
 
     elif map_matrix[car_location] == 2:
         print "congratulations! You arrive destination"

@@ -39,9 +39,10 @@ car_location_save =[]
 
 # train
 learning_rate = 1e-4
-_ = train_game_nn(model, map_matrix, initial_car_location, goal_location, learning_rate, max_iter=10000)
+_ = train_game_nn(model, map_matrix, initial_car_location, goal_location, learning_rate, max_iter=100000)
 
 # test
+print "start testing"
 goal_distance = 0
 car_location_save =[]
 car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance) # initial env
