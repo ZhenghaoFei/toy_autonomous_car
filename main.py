@@ -4,20 +4,23 @@ from game_nn import *
 from matrix_simulator import *
 
 # hyperparameters
-H = 200 # number of hidden layer neurons
+H1 = 500 # number of hidden layer neurons
 batch_size = 1 # every how many episodes to do a param update?
 gamma = 0.99 # discount factor for reward
 decay_rate = 0.99 # decay factor for RMSProp leaky sum of grad^2
-resume = True # resume from previous checkpoint?
+resume = False # resume from previous checkpoint?
 
+dim1 = 10
+dim2 = 10
+probobility = 0.3
+map_prameters = dim1, dim2 ,probobility
 # model initialization
-D = 12 * 12 # input dimensionality
+D = (dim1 + 2) * (dim2 + 2) # input dimensionality, because 1 pad
+model = creat_model(D, H1)
 if resume:
-	model = load_model()
-else:
-	model = {}
-	model['W1'] = np.random.randn(H,D) / np.sqrt(D) # "Xavier" initialization
-	model['W2'] = np.random.randn(H,4) / np.sqrt(H)
+    print "model resumed"
+    model = load_model(model)
+
 
 # initialize environment
 # map_matrix = np.array\
@@ -42,32 +45,33 @@ else:
 
 # train
 learning_rate = 1e-4
-train_game_nn(model, learning_rate, max_iter=5000000)
+train_game_rlnn(model, map_prameters, learning_rate, decay=decay_rate, max_iter=100000)
 save_model(model)
-# test
-print "start testing"
-map_matrix, initial_car_location, goal_location = random_map(10, 10, 0.3)
-step = 0
-goal_distance = 10000
-car_location_save =[]
-car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step) # initial env
-for i in range(20):
-    action, h_cache, env_cache = policy_forward(env, model)
-    car_location, feedback, env, _, step = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
-    car_location_save.append(car_location)
-    if np.any(feedback == 1):
-        print "game end"
-        break
-    if np.any(feedback == -1):
-        print "game end"
-        break
 
-# plot
-fig, ax = plt.subplots()  
-print len(car_location_save)
-def animate(i):
-    map_plot = np.copy(map_matrix)
-    map_plot[car_location_save[i]] = 3
-    ax.imshow(map_plot, interpolation='none')
-anim = animation.FuncAnimation(fig, animate, frames = len(car_location_save) )
-plt.show()
+# # test
+# print "start testing"
+# map_matrix, initial_car_location, goal_location = random_map(10, 10, 0.3)
+# step = 0
+# goal_distance = 10000
+# car_location_save =[]
+# car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step) # initial env
+# for i in range(20):
+#     action, h_cache, env_cache = policy_forward(env, model)
+#     car_location, feedback, env, _, step, _ = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
+#     car_location_save.append(car_location)
+#     if np.any(feedback == 1):
+#         print "game end"
+#         break
+#     if np.any(feedback == -1):
+#         print "game end"
+#         break
+
+# # plot
+# fig, ax = plt.subplots()  
+# print len(car_location_save)
+# def animate(i):
+#     map_plot = np.copy(map_matrix)
+#     map_plot[car_location_save[i]] = 3
+#     ax.imshow(map_plot, interpolation='none')
+# anim = animation.FuncAnimation(fig, animate, frames = len(car_location_save) )
+# plt.show()

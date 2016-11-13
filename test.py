@@ -1,26 +1,20 @@
 import numpy as np
+from game_nn import *
 
-def random_map(dim1, dim2, propobility):
-  map_matrix = np.zeros([dim1, dim2])
-  for i in range(dim1):
-    for j in range(dim2):
-      a = np.random.random(1)
-      if a < propobility:
-        map_matrix[i,j] = 1
-  start = np.random.random_integers(0, 9, 2)
-  start_x = start[0]
-  start_y = start[1]
-  start = start_x, start_y
-  goal = np.random.random_integers(0, 9, 2)
-  goal_x = goal[0]
-  goal_y = goal[1]
-  goal = goal_x, goal_y
-  map_matrix[goal] = 2
-  return map_matrix, start, goal
+# hyperparameters
+H = 200 # number of hidden layer neurons
+batch_size = 1 # every how many episodes to do a param update?
+gamma = 0.99 # discount factor for reward
+decay_rate = 0.99 # decay factor for RMSProp leaky sum of grad^2
+resume = False # resume from previous checkpoint?
 
 dim1 = 10
 dim2 = 10
 probobility = 0.3
-map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+map_prameters = dim1, dim2 ,probobility
+# model initialization
+D = (dim1 + 2) * (dim2 + 2) # input dimensionality, because 1 pad
+model = creat_model(D, H)
 
-print map_matrix[initial_car_location]
+learning_rate = 1e-4
+train_game_rlnn(model, map_prameters, learning_rate, max_iter=10)

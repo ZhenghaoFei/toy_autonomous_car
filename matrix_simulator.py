@@ -20,17 +20,17 @@ def random_map(dim1, dim2, propobility):
   goal_x = goal[0]
   goal_y = goal[1]
   goal = goal_x, goal_y
-  map_matrix[goal] = 2
+  map_matrix[goal] = 200
 
   return map_matrix, start, goal
 
 def plot_map(map_matrix, car_location):
-    map_matrix[car_location] = 3 # use three to present car
+    map_matrix[car_location] = 100# use three to present car
     plt.imshow(map_matrix, interpolation='none')
 
 def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, step, max_step = 20, car_location = None, action = None, verbos=False):
     reset = False
-    feedback = np.zeros(4) # default feedback 
+    feedback = 0 # default feedback 
     env =  np.zeros([10, 10])	
     env_distance = 1 # env use car as center, sensing distance
     map_env = np.pad(map_matrix, env_distance,'constant', constant_values=1)
@@ -40,7 +40,7 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         car_x, car_y = car_location
         env_x = car_x + env_distance
         env_y = car_y + env_distance
-        map_env[env_x, env_y] = 3
+        map_env[env_x, env_y] = 100
         # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
         return car_location, feedback, map_env
 
@@ -69,35 +69,39 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
     env_location = env_x, env_y
     # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
     goal_distance = np.sqrt(np.sum((np.asarray(goal_location) - np.asarray(car_location))**2)) # the distance from goal
-    print "goal_distance: ", goal_distance
+    # print "goal_distance: ", goal_distance
     step += 1
-    print "step: ", step
+    # print "step: ", step
     # check status
+    status = 'normal'
     if map_env[env_location] == 1:
-        print "collision"
-        feedback[action] = -1 # collision feedback
+        # print "collision"
+        feedback = -1 # collision feedback
         reset = True
-
+        status = 'collision'
         # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
 
     elif map_env[env_location] == 0:
         # improve = last_goaldistance - goal_distance # whether approach goal
         # if improve > 0:
-        #     feedback[action] = 0.01 # good moving feedback
+        #     feedback = 0.01 # good moving feedback
         # elif improve < 0:
-        #     feedback[action] = -0.01 # bad moving feedback
-        # # feedback[action] = -0.08
+        #     feedback = -0.01 # bad moving feedback
+        # # feedback = -0.08
         if step >= max_step:
-            feedback[action] = -1
+            feedback = -1
             reset = True
+            # print "reset"
 
-    elif map_env[env_location] == 2:
-        print "congratulations! You arrive destination"
-        feedback[action] = 1 # get goal feedback
+
+    elif map_env[env_location] == 200:
+        # print "congratulations! You arrive destination"
+        feedback = 1 # get goal feedback
         reset = True
-        
-    map_env[env_location] = 3
-    return car_location, feedback, map_env, goal_distance, step, reset
+        status = 'arrive'
+    map_env[env_location] = 100
+    # map_env = map_env.ravel
+    return car_location, feedback, map_env, goal_distance, step, reset, status
 
 # map_matrix = np.array\
 #      ([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.,  0.,  0.],
