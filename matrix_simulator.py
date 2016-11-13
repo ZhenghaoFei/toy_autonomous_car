@@ -22,7 +22,6 @@ def random_map(dim1, dim2, propobility):
   goal_y = goal[1]
   goal = goal_x, goal_y
   map_matrix[goal] = 200
-
   return map_matrix, start, goal
 
 def plot_map(map_matrix, car_location):
@@ -33,7 +32,7 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
     reset = False
     feedback = 0 # default feedback 
     env =  np.zeros([10, 10])	
-    env_distance = 1 # env use car as center, sensing distance
+    env_distance = 10 # env use car as center, sensing distance
     map_env = np.pad(map_matrix, env_distance,'constant', constant_values=1)
     # map_env = np.copy(map_matrix)
     if action == None:
@@ -41,9 +40,10 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         car_x, car_y = car_location
         env_x = car_x + env_distance
         env_y = car_y + env_distance
+        # env use car as center, sensing distance
         map_env[env_x, env_y] = 100
-        # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
-        return car_location, feedback, map_env
+        env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
+        return car_location, feedback, env
 
     # check if initial_location legal
     if map_matrix[car_location] == 1:
@@ -90,7 +90,7 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         #     feedback = -0.01 # bad moving feedback
         # # feedback = -0.08
         if step >= max_step:
-            feedback = -1
+            feedback = 0
             reset = True
             # print "reset"
 
@@ -102,7 +102,9 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         status = 'arrive'
     map_env[env_location] = 100
     # map_env = map_env.ravel
-    return car_location, feedback, map_env, goal_distance, step, reset, status
+    env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
+
+    return car_location, feedback, env, goal_distance, step, reset, status
 
 # map_matrix = np.array\
 #      ([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.,  0.,  0.],
