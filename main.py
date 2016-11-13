@@ -4,9 +4,8 @@ from game_nn import *
 from matrix_simulator import *
 
 # hyperparameters
-H1 = 500 # number of hidden layer neurons
+H1 = 200 # number of hidden layer neurons
 batch_size = 1 # every how many episodes to do a param update?
-gamma = 0.99 # discount factor for reward
 decay_rate = 0.99 # decay factor for RMSProp leaky sum of grad^2
 resume = False # resume from previous checkpoint?
 

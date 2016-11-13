@@ -6,14 +6,15 @@ from cs231n.layer_utils import *
 
 
 def discount_rewards(r):
-    gamma = 0.99 # discount factor for reward
+    gamma = 0.1 # discount factor for reward
 
     """ take 1D float array of rewards and compute discounted reward """
-    discounted_r = np.zeros_like(r)
+    discounted_r = np.zeros_like(r, dtype=float)
     running_add = 0
     for t in reversed(xrange(0, r.size)):
         if r[t] != 0: running_add = 0 # reset the sum, since this was a game boundary (pong specific!)
-
+        running_add = running_add * gamma + r[t]
+        discounted_r[t] = running_add
     return discounted_r
 
 def policy_forward(env, model):
@@ -100,10 +101,13 @@ def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter
             action_round.append(action)
             h_round.append(h)
             feedback_round.append(feedback)
+
             epr = np.vstack(feedback_round)
 
             # pre process book keeping
             dr = discount_rewards(epr) # discouted rewards for this round, shape: step
+            # print epr
+            # print status
             feedback_input = np.zeros([len(dr), 4]) # shape: step, 4
             for i in range(len(dr)): # transfer reward vector to reward matrix
                 feedback_input[i, action_round[i]] = dr[i]

@@ -4,6 +4,7 @@ import matplotlib.animation as animation
 
 
 def random_map(dim1, dim2, propobility):
+  # np.random.seed(2)
   map_matrix = np.zeros([dim1, dim2])
   for i in range(dim1):
     for j in range(dim2):
