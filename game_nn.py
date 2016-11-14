@@ -17,6 +17,27 @@ def discount_rewards(r):
         discounted_r[t] = running_add
     return discounted_r
 
+def softmax_loss(x, y):
+    """
+    Computes the loss and gradient for softmax classification.
+    Inputs:
+    - x: Input data, of shape (N, C) where x[i, j] is the score for the jth class
+    for the ith input.
+    - y: Vector of labels, of shape (N,) where y[i] is the label for x[i] and
+    0 <= y[i] < C
+    Returns a tuple of:1
+    - loss: Scalar giving the loss
+    - dx: Gradient of the loss with respect to x
+    """
+    probs = np.exp(x - np.max(x, axis=1, keepdims=True))
+    probs /= np.sum(probs, axis=1, keepdims=True)
+    N = x.shape[0]
+    # loss = -np.sum(np.log(probs[np.arange(N), y])) / N
+    dx = probs.copy()
+    dx[np.arange(N), y] -= 1
+    dx /= N
+    return probs, dx
+
 def policy_forward(env, model):
     h = np.dot(model['W1'], env) #should be 200 * 1
     # print "h:", h.shape
@@ -25,9 +46,23 @@ def policy_forward(env, model):
     action_score = np.dot(h.T, model['W2']) # should be (1 , 4)
 #     print action_score
     # print action_score.shape
-    action = np.argmax(action_score)
+    probs = np.exp(action_score - np.max(action_score))
+    probs /= np.sum(probs)
+    dice = np.random.uniform() # roll the dice!
+    action = 0
+    for i in range(probs.shape[0]):
+        if dice < probs[i]:
+            action = i
+            break  # if dice fall in certain range chose the action
+
+    N = action_score.shape[0]
+    dx = probs.copy()
+    dx[action] -= 1 # fake label
+    dx /= N
+    dx = -dx # rad that encourages the action that was taken to be taken if feedback > 0 
+
     # print action
-    return action, h # return action, and hidden state
+    return action, h, dx # return action, and hidden state
 
 # reward should be a vector e.g [0, 0, 1, 0]
 def policy_backward(feedback, h_cache, env_cache, model):
@@ -44,6 +79,7 @@ def policy_backward(feedback, h_cache, env_cache, model):
     # print 'env:', env_cache.shape
     dW1 = np.dot(dh.T, env_cache)
     return {'W1':dW1, 'W2':dW2}
+
 
 def sgd_update(model, gradient, learning_rate):
     for k,v in model.iteritems():
@@ -94,11 +130,12 @@ def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter
     feedback_round = [] 
     env_round = []
     action_round = []
-    h_round = [] 
+    h_round = []
+    dscore_round = []
     env_round.append(env) # first env
 
     for i in range(max_iter):
-        action, h = policy_forward(env, model)
+        action, h, dscore = policy_forward(env, model)
         car_location, feedback, env, goal_distance, step, reset, status = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
 
 
@@ -107,23 +144,27 @@ def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter
             # print status
             simu_round += 1
             action_round.append(action)
-            h_round.append(h)
+            dscore_round.append(dscore)
             feedback_round.append(feedback)
+            h_round.append(h)
 
             epr = np.vstack(feedback_round)
 
             # pre process book keeping
             dr = discount_rewards(epr) # discouted rewards for this round, shape: step
-
-            feedback_input = np.zeros([len(dr), 4]) # shape: step, 4
+            dscore_input = np.vstack(dscore_round)
+            feedback_input = np.zeros(len(dr)) # shape: step, 
             for i in range(len(dr)): # transfer reward vector to reward matrix
-                feedback_input[i, action_round[i]] = dr[i]
+                feedback_input[i] = dr[i]
+            feedback_input = feedback_input.T
             env_input = np.vstack(env_round) # shape: step, dim1*dim2
             h_input = np.vstack(h_round)
             feedback_round = [] 
             env_round = []
             action_round =[]
             h_round = []
+            dscore_round = []
+
             
             # benchmark
             if status == 'collision':
@@ -146,7 +187,14 @@ def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter
 
             # print feedback_input
             # print status
-            gradient = policy_backward(feedback_input, h_input, env_input, model)
+            # print "feedback: ", feedback_input.shape
+            # print "dscore: ", dscore_input.shape
+            dscore_input = dscore_input.T
+            # print "dscore.T: ", dscore_input.shape
+            dscore_input *= feedback_input
+            dscore_input = dscore_input.T
+
+            gradient = policy_backward(dscore_input, h_input, env_input, model)
             # sgd_update(model, gradient, learning_rate)
             rmsprop_update(model, gradient, learning_rate, rmsprop_cache)
 
@@ -159,6 +207,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter
         # book keeping
         if not reset:
             action_round.append(action)
+            dscore_round.append(dscore)
             feedback_round.append(feedback)
             h_round.append(h)
             # print env

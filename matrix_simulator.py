@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 
 
 def random_map(dim1, dim2, propobility):
-  # np.random.seed(2)
+  np.random.seed(2)
   map_matrix = np.zeros([dim1, dim2])
   for i in range(dim1):
     for j in range(dim2):
@@ -90,7 +90,7 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         #     feedback = -0.01 # bad moving feedback
         # # feedback = -0.08
         if step >= max_step:
-            feedback = 0
+            feedback = -1
             reset = True
             # print "reset"
 
