@@ -4,7 +4,7 @@ from game_nn import *
 from matrix_simulator import *
 
 # hyperparameters
-H1 = 500 # number of hidden layer neurons
+H1 = 200 # number of hidden layer neurons
 batch_size = 1 # every how many episodes to do a param update?
 lr_decay = 0.995 # decay factor for RMSProp leaky sum of grad^2
 resume = False # resume from previous checkpoint?
@@ -43,7 +43,7 @@ if resume:
 # car_location_save =[]
 
 # train
-learning_rate = 1e-5
+learning_rate = 1e-4
 train_game_rlnn(model, map_prameters, learning_rate, decay=lr_decay, max_iter=200000)
 save_model(model)
 

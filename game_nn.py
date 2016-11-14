@@ -46,14 +46,18 @@ def policy_forward(env, model):
     action_score = np.dot(h.T, model['W2']) # should be (1 , 4)
 #     print action_score
     # print action_score.shape
-    probs = np.exp(action_score - np.max(action_score))
+    # probs = np.exp(action_score - np.max(action_score))
+    probs = np.exp(action_score)
     probs /= np.sum(probs)
     dice = np.random.uniform() # roll the dice!
+    # print dice
+    # print probs
     action = 0
     for i in range(probs.shape[0]):
         prob = np.sum(probs[:i])
         if dice < prob:
             action = i
+            # print action
             break  # if dice fall in certain range chose the action
 
 
@@ -61,7 +65,7 @@ def policy_forward(env, model):
     dx = probs.copy()
     dx[action] -= 1 # fake label
     dx /= N
-    dx = -dx # rad that encourages the action that was taken to be taken if feedback > 0 
+    # dx = -dx # grad that encourages the action that was taken to be taken if feedback > 0 
 
     # print action
     return action, h, dx # return action, and hidden state
