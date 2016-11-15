@@ -44,10 +44,10 @@ def policy_forward(env, model):
     # print "w2:", model['W2'].shape
     h[h<0] = 0 # ReLU nonlinearity
     action_score = np.dot(h.T, model['W2']) # should be (1 , 4)
-#     print action_score
+    # print action_score
     # print action_score.shape
-    # probs = np.exp(action_score - np.max(action_score))
-    probs = np.exp(action_score)
+    probs = np.exp(action_score - np.max(action_score))
+    # probs = np.exp(action_score)
     probs /= np.sum(probs)
     dice = np.random.uniform() # roll the dice!
     # print dice
