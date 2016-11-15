@@ -71,7 +71,7 @@ def policy_forward(env, model):
     return action, h, dx # return action, and hidden state
 
 # reward should be a vector e.g [0, 0, 1, 0]
-def policy_backward(feedback, h_cache, env_cache, model):
+def policy_backward(feedback, h_cache, env_cache, model, reg):
     """ backward pass. (h_cache is array of intermediate hidden states) """
     # print 'feedback:', feedback.shape
     # print 'h_cache:', h_cache.shape
@@ -84,6 +84,9 @@ def policy_backward(feedback, h_cache, env_cache, model):
     #epx ex input (D*D, 1)
     # print 'env:', env_cache.shape
     dW1 = np.dot(dh.T, env_cache)
+    dW1 += 0.5 * reg * 2 * model['W1']
+    dW2 += 0.5 * reg * 2 * model['W2']
+
     return {'W1':dW1, 'W2':dW2}
 
 
@@ -119,7 +122,7 @@ def load_model(model):
     return model
 
 # training process
-def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter = 10):
+def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, max_iter = 10):
     dim1, dim2, probobility = map_prameters
     rmsprop_cache = { k : np.zeros_like(v) for k,v in model.iteritems() } # rmsprop memory
     map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
@@ -200,7 +203,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, decay = 0.995, max_iter
             dscore_input *= feedback_input
             dscore_input = dscore_input.T
 
-            gradient = policy_backward(dscore_input, h_input, env_input, model)
+            gradient = policy_backward(dscore_input, h_input, env_input, model, reg)
             # sgd_update(model, gradient, learning_rate)
             rmsprop_update(model, gradient, learning_rate, rmsprop_cache)
 
