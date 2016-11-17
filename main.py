@@ -11,7 +11,7 @@ resume = False # resume from previous checkpoint?
 
 dim1 = 10
 dim2 = 10
-probobility = 0.3
+probobility = 0.2
 map_prameters = dim1, dim2 ,probobility
 # model initialization
 D = (dim1 + 11) * (dim2 + 11) # input dimensionality, because 1 pad
@@ -43,7 +43,7 @@ if resume:
 # car_location_save =[]
 
 # train
-learning_rate = 1e-4
+learning_rate = 1e-5
 train_game_rlnn(model, map_prameters, learning_rate, reg=1, decay=lr_decay, max_iter=2000000)
 save_model(model)
 

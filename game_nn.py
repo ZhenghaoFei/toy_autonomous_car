@@ -3,7 +3,7 @@ from matrix_simulator import *
 from cs231n.layers import *
 from cs231n.fast_layers import *
 from cs231n.layer_utils import *
-
+import matplotlib.pyplot as plt
 
 def discount_rewards(r):
     gamma = 0.9# discount factor for reward
@@ -49,25 +49,30 @@ def policy_forward(env, model):
     probs = np.exp(action_score - np.max(action_score))
     # probs = np.exp(action_score)
     probs /= np.sum(probs)
+    np.random.seed()
+
     dice = np.random.uniform() # roll the dice!
     # print dice
-    # print probs
+    # print "probs:"
     action = 0
     for i in range(probs.shape[0]):
-        prob = np.sum(probs[:i])
+        prob = np.sum(probs[:i+1])
         if dice < prob:
             action = i
             # print action
             break  # if dice fall in certain range chose the action
+    # print probs
+
+    # print "action ", action
 
 
     N = action_score.shape[0]
     dx = probs.copy()
     dx[action] -= 1 # fake label
     dx /= N
-    # dx = -dx # grad that encourages the action that was taken to be taken if feedback > 0 
-
-    # print action
+    dx = -dx # grad that encourages the action that was taken to be taken if feedback > 0 
+    # print "dx"
+    # print dx
     return action, h, dx # return action, and hidden state
 
 # reward should be a vector e.g [0, 0, 1, 0]
@@ -133,6 +138,8 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     simu_round = 0
     arrive = 0
     car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step) # initial env
+    # plt.imshow(env, interpolation='none')
+    # plt.show()
     # print env
     env = env.ravel()
     # book keeping for one round and initialize
@@ -146,8 +153,6 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     for i in range(max_iter):
         action, h, dscore = policy_forward(env, model)
         car_location, feedback, env, goal_distance, step, reset, status = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
-
-
 
         if reset:  # one simu_round finished
             # print status
@@ -199,10 +204,14 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             # print "feedback: ", feedback_input.shape
             # print "dscore: ", dscore_input.shape
             dscore_input = dscore_input.T
-            # print "dscore.T: ", dscore_input.shape
+            # print "dscore: "
+            # print dscore_input
+            # print "feedback_input"
+            # print feedback_input
             dscore_input *= feedback_input
             dscore_input = dscore_input.T
-
+            # print "dscore_input: "
+            # print dscore_input
             gradient = policy_backward(dscore_input, h_input, env_input, model, reg)
             # sgd_update(model, gradient, learning_rate)
             rmsprop_update(model, gradient, learning_rate, rmsprop_cache)

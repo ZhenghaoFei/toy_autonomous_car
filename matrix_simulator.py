@@ -2,15 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-
+WALL_VALUE = 10
+CAR_VALUE = 100
 def random_map(dim1, dim2, propobility):
-  # np.random.seed(2)
+  # np.random.seed(3)
   map_matrix = np.zeros([dim1, dim2])
   for i in range(dim1):
     for j in range(dim2):
       a = np.random.random(1)
       if a < propobility:
-        map_matrix[i,j] = 1
+        map_matrix[i,j] = WALL_VALUE
   start = np.random.random_integers(0, 9, 2)
   start_x = start[0]
   start_y = start[1]
@@ -25,15 +26,15 @@ def random_map(dim1, dim2, propobility):
   return map_matrix, start, goal
 
 def plot_map(map_matrix, car_location):
-    map_matrix[car_location] = 100# use three to present car
+    map_matrix[car_location] = CAR_VALUE# use three to present car
     plt.imshow(map_matrix, interpolation='none')
 
-def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, step, max_step = 20, car_location = None, action = None, verbos=False):
+def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, step, max_step = 30, car_location = None, action = None, verbos=False):
     reset = False
     feedback = 0 # default feedback 
     env =  np.zeros([10, 10])	
     env_distance = 10 # env use car as center, sensing distance
-    map_env = np.pad(map_matrix, env_distance,'constant', constant_values=1)
+    map_env = np.pad(map_matrix, env_distance,'constant', constant_values=WALL_VALUE)
     # map_env = np.copy(map_matrix)
     if action == None:
         car_location = initial_car_location
@@ -41,12 +42,12 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
         env_x = car_x + env_distance
         env_y = car_y + env_distance
         # env use car as center, sensing distance
-        map_env[env_x, env_y] = 100
+        map_env[env_x, env_y] = CAR_VALUE
         env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
         return car_location, feedback, env
 
     # check if initial_location legal
-    if map_matrix[car_location] == 1:
+    if map_matrix[car_location] == WALL_VALUE:
         print "initial position error"
         car_location = initial_car_location
         reset = True
@@ -75,7 +76,7 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
     # print "step: ", step
     # check status
     status = 'normal'
-    if map_env[env_location] == 1:
+    if map_env[env_location] == WALL_VALUE:
         # print "collision"
         feedback = -1 # collision feedback
         reset = True
@@ -97,10 +98,10 @@ def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance
 
     elif map_env[env_location] == 200:
         # print "congratulations! You arrive destination"
-        feedback = 1 # get goal feedback
+        feedback = 100 # get goal feedback
         reset = True
         status = 'arrive'
-    map_env[env_location] = 100
+    map_env[env_location] = CAR_VALUE
     # map_env = map_env.ravel
     env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
 
