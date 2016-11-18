@@ -4,7 +4,7 @@ from cs231n.layers import *
 from cs231n.fast_layers import *
 from cs231n.layer_utils import *
 import matplotlib.pyplot as plt
-
+debug = False
 def discount_rewards(r):
     gamma = 0.9# discount factor for reward
 
@@ -39,13 +39,18 @@ def softmax_loss(x, y):
     return probs, dx
 
 def policy_forward(env, model):
-    h = np.dot(model['W1'], env) #should be 200 * 1
-    # print "h:", h.shape
-    # print "w2:", model['W2'].shape
-    h[h<0] = 0 # ReLU nonlinearity
-    action_score = np.dot(h.T, model['W2']) # should be (1 , 4)
-    # print action_score
-    # print action_score.shape
+    h1 = np.dot(model['W1'], env) #should be 200 * 1
+    h1[h1<0] = 0 # ReLU nonlinearity
+
+    h2 = np.dot(h1.T,model['W2'])
+    h2[h2<0] = 0
+    action_score = np.dot(h2.T, model['W3']) # should be (1 , 4)
+    if debug:
+        print "h1:", h1.shape
+        print "w2:", model['W2'].shape
+        print "h2:", h2.shape
+        # print action_score
+        print action_score.shape
     probs = np.exp(action_score - np.max(action_score))
     # probs = np.exp(action_score)
     probs /= np.sum(probs)
@@ -73,26 +78,36 @@ def policy_forward(env, model):
     dx = -dx # grad that encourages the action that was taken to be taken if feedback > 0 
     # print "dx"
     # print dx
-    return action, h, dx # return action, and hidden state
+    return action, h1, h2, dx # return action, and hidden state
 
 # reward should be a vector e.g [0, 0, 1, 0]
-def policy_backward(feedback, h_cache, env_cache, model, reg):
+def policy_backward(feedback, h1_cache, h2_cache, env_cache, model, reg):
     """ backward pass. (h_cache is array of intermediate hidden states) """
-    # print 'feedback:', feedback.shape
-    # print 'h_cache:', h_cache.shape
-    dW2 = np.dot(h_cache.T, feedback) # 200 * 4
-#     dh = np.outer(reward, model['W2'])
-    dh = np.dot(feedback, model['W2'].T) # 200 * 1
-    # print 'dh:', dh.shape
+    if debug:
+        print 'feedback:', feedback.shape
+        print 'h1_cache:', h1_cache.shape
+        print 'h2_cache:', h2_cache.shape
+        print 'env_cache:', env_cache.shape
+    dW3 = np.dot(h2_cache.T, feedback) # 200 * 4
+    dh2 = np.dot(model['W3'], feedback.T) # 200 * 1
+    if debug:
+        print "dW3:", dW3.shape
+        print "dh2:", dh2.shape
+    dW2 = np.dot(h1_cache.T, dh2.T) # 200*200
+    dh1 = np.dot(dh2.T, model['W2'].T)
+    dW1 = np.dot(dh1.T,env_cache)
+    if debug:
+        print "dh1:", dh1.shape
+        print "dW2:", dW2.shape
+        print "dW1:", dW1.shape
+    # dh1[h1_cache <= 0] = 0 # backpro prelu
+    # dh2[h2_cache <= 0] = 0
 
-    dh[h_cache <= 0] = 0 # backpro prelu
-    #epx ex input (D*D, 1)
-    # print 'env:', env_cache.shape
-    dW1 = np.dot(dh.T, env_cache)
     dW1 += 0.5 * reg * 2 * model['W1']
     dW2 += 0.5 * reg * 2 * model['W2']
+    dW3 += 0.5 * reg * 2 * model['W3']
 
-    return {'W1':dW1, 'W2':dW2}
+    return {'W1':dW1, 'W2':dW2, 'W3':dW3}
 
 
 def sgd_update(model, gradient, learning_rate):
@@ -104,15 +119,22 @@ def rmsprop_update(model, gradient, learning_rate, rmsprop_cache, decay_rate = 0
         g = gradient[k] # gradient
         rmsprop_cache[k] = decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g**2
         model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
+    return rmsprop_cache,model
 
-def creat_model(D, H1):
+def creat_model(D, H1, H2, C=4):
     model = {}
     model['W1'] = np.random.randn(H1, D) / np.sqrt(D * H1) # "Xavier" initialization
     # model['b1'] = np.random.randn(H1)
     # model['W2'] = np.random.randn(H1,H2) / np.sqrt(H1)
     # model['b2'] = np.random.randn(H2)
-    model['W2'] = np.random.randn(H1,4) / np.sqrt(H1 * 4)
+    model['W2'] = np.random.randn(H1, H2) / np.sqrt(H1 * H2)
+    model['W3'] = np.random.randn(H2, C) / np.sqrt(H2 * C) 
     # model['b2'] = np.random.randn(4)
+    if debug:
+        print "W1:", model['W1'].shape
+        print "W2:", model['W2'].shape
+        print "W3:", model['W3'].shape
+
     return model
 
 
@@ -127,10 +149,14 @@ def load_model(model):
     return model
 
 # training process
-def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, max_iter = 10):
+def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, max_iter = 10,plotmap=False):
     dim1, dim2, probobility = map_prameters
     rmsprop_cache = { k : np.zeros_like(v) for k,v in model.iteritems() } # rmsprop memory
     map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+    if plotmap:
+        plot_map(map_matrix, initial_car_location)
+        plt.show()
+        plotmap = False
     goal_distance = 10000
     step = 0
     collision = 0
@@ -146,12 +172,13 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     feedback_round = [] 
     env_round = []
     action_round = []
-    h_round = []
+    h1_round = []
+    h2_round = []
     dscore_round = []
     env_round.append(env) # first env
 
     for i in range(max_iter):
-        action, h, dscore = policy_forward(env, model)
+        action, h1, h2, dscore = policy_forward(env, model)
         car_location, feedback, env, goal_distance, step, reset, status = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
 
         if reset:  # one simu_round finished
@@ -160,7 +187,8 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             action_round.append(action)
             dscore_round.append(dscore)
             feedback_round.append(feedback)
-            h_round.append(h)
+            h1_round.append(h1)
+            h2_round.append(h2)
 
             epr = np.vstack(feedback_round)
 
@@ -172,11 +200,13 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
                 feedback_input[i] = dr[i]
             feedback_input = feedback_input.T
             env_input = np.vstack(env_round) # shape: step, dim1*dim2
-            h_input = np.vstack(h_round)
+            h1_input = np.vstack(h1_round)
+            h2_input = np.vstack(h2_round)
             feedback_round = [] 
             env_round = []
             action_round =[]
-            h_round = []
+            h1_round = []
+            h2_round = []
             dscore_round = []
 
             
@@ -212,9 +242,9 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             dscore_input = dscore_input.T
             # print "dscore_input: "
             # print dscore_input
-            gradient = policy_backward(dscore_input, h_input, env_input, model, reg)
+            gradient = policy_backward(dscore_input, h1_input, h2_input, env_input, model, reg)
             # sgd_update(model, gradient, learning_rate)
-            rmsprop_update(model, gradient, learning_rate, rmsprop_cache)
+            rmsprop_cache,model = rmsprop_update(model, gradient, learning_rate, rmsprop_cache)
 
              # initial env
             car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step)
@@ -227,7 +257,8 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             action_round.append(action)
             dscore_round.append(dscore)
             feedback_round.append(feedback)
-            h_round.append(h)
+            h1_round.append(h1)
+            h2_round.append(h2)
             # print env
             env = env.ravel()
             env_round.append(env)

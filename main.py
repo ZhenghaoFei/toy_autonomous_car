@@ -5,8 +5,9 @@ from matrix_simulator import *
 
 # hyperparameters
 H1 = 200 # number of hidden layer neurons
+H2 = 100
 batch_size = 1 # every how many episodes to do a param update?
-lr_decay = 0.99995 # decay factor for RMSProp leaky sum of grad^2
+lr_decay = 0.9995 # decay factor for RMSProp leaky sum of grad^2
 resume = False # resume from previous checkpoint?
 
 dim1 = 10
@@ -15,7 +16,7 @@ probobility = 0.2
 map_prameters = dim1, dim2 ,probobility
 # model initialization
 D = (dim1 + 11) * (dim2 + 11) # input dimensionality, because 1 pad
-model = creat_model(D, H1)
+model = creat_model(D, H1, H2)
 if resume:
     print "model resumed"
     model = load_model(model)
