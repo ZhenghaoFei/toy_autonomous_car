@@ -59,15 +59,15 @@ def policy_forward(env, model):
     dice = np.random.uniform() # roll the dice!
     # print dice
     # print "probs:"
-    action = 0
-    for i in range(probs.shape[0]):
-        prob = np.sum(probs[:i+1])
-        if dice < prob:
-            action = i
-            # print action
-            break  # if dice fall in certain range chose the action
+    # action = 0
+    # for i in range(probs.shape[0]):
+    #     prob = np.sum(probs[:i+1])
+    #     if dice < prob:
+    #         action = i
+    #         # print action
+    #         break  # if dice fall in certain range chose the action
     # print probs
-
+    action = np.random.choice(4, 1, p = probs)
     # print "action ", action
 
 
