@@ -4,18 +4,20 @@ from game_nn import *
 from matrix_simulator import *
 
 # hyperparameters
-H1 = 200 # number of hidden layer neurons
-H2 = 100
+H1 = 50 # number of hidden layer neurons
+H2 = 50
 batch_size = 1 # every how many episodes to do a param update?
-lr_decay = 0.9995 # decay factor for RMSProp leaky sum of grad^2
+lr_decay = 0.995 # decay factor for RMSProp leaky sum of grad^2
+learning_rate = 1e-5
+
 resume = False # resume from previous checkpoint?
 
-dim1 = 10
-dim2 = 10
-probobility = 0.2
+dim1 = 5
+dim2 = 5
+probobility = 0.0 
 map_prameters = dim1, dim2 ,probobility
 # model initialization
-D = (dim1 + 11) * (dim2 + 11) # input dimensionality, because 1 pad
+D = (dim1 + 2) * (dim2 + 2) # input dimensionality, because 1 pad
 model = creat_model(D, H1, H2)
 if resume:
     print "model resumed"
@@ -44,7 +46,6 @@ if resume:
 # car_location_save =[]
 
 # train
-learning_rate = 1e-5
 train_game_rlnn(model, map_prameters, learning_rate, reg=1, decay=lr_decay, max_iter=2000000)
 save_model(model)
 

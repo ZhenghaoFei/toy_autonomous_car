@@ -4,7 +4,10 @@ from cs231n.layers import *
 from cs231n.fast_layers import *
 from cs231n.layer_utils import *
 import matplotlib.pyplot as plt
+
 debug = False
+
+
 def discount_rewards(r):
     gamma = 0.9# discount factor for reward
 
@@ -55,10 +58,17 @@ def policy_forward(env, model):
     # probs = np.exp(action_score)
     probs /= np.sum(probs)
     np.random.seed()
-
+    epsilon = 0.5 # eps greedy
     dice = np.random.uniform() # roll the dice!
+    if dice < epsilon:
+        action = np.argmax(probs)
+    else:
+        action = np.random.choice(4, 1, p = probs)
+
     # print dice
     # print "probs:"
+    # print probs
+
     # action = 0
     # for i in range(probs.shape[0]):
     #     prob = np.sum(probs[:i+1])
@@ -66,8 +76,7 @@ def policy_forward(env, model):
     #         action = i
     #         # print action
     #         break  # if dice fall in certain range chose the action
-    # print probs
-    action = np.random.choice(4, 1, p = probs)
+
     # print "action ", action
 
 
@@ -176,11 +185,17 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     h2_round = []
     dscore_round = []
     env_round.append(env) # first env
-
+    total_reward = 0
+    reward_tr = []
     for i in range(max_iter):
         action, h1, h2, dscore = policy_forward(env, model)
+        last_car_location = car_location# keep last car_location
         car_location, feedback, env, goal_distance, step, reset, status = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
-
+        total_reward += feedback
+        # print("car_loc:", last_car_location)
+        # print("action:", action)
+        # print(env)
+        # print "action", action
         if reset:  # one simu_round finished
             # print status
             simu_round += 1
@@ -194,6 +209,10 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
 
             # pre process book keeping
             dr = discount_rewards(epr) # discouted rewards for this round, shape: step
+            if len(dr) > 1:
+                # standardize the rewards to be unit normal (helps control the gradient estimator variance)
+                dr -= np.mean(dr)
+                dr /= np.std(dr)
             dscore_input = np.vstack(dscore_round)
             feedback_input = np.zeros(len(dr)) # shape: step, 
             for i in range(len(dr)): # transfer reward vector to reward matrix
@@ -212,42 +231,51 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             
             # benchmark
             if status == 'collision':
-                collision += 1
+                collision += 1.0
             elif status == 'arrive':
-                arrive += 1
+                arrive += 1.0
             else:
-                normal_reset += 1
-            if simu_round%100 ==0:
-                learning_rate *= decay
-                print "lr: ", learning_rate
-                print "collision: %i %%" %(collision)
-                print "arrive: %i %%" %(arrive)
-                print "normal_reset: %i %%" %(normal_reset)
+                normal_reset += 1.0
+            if simu_round%1000 ==0:
+                # learning_rate *= decay
+                # print "lr: ", learning_rate
+                sum_all = collision + arrive + normal_reset
+                print "collision: %i %%" %(collision/sum_all*100)
+                print "arrive: %i %%" %(arrive/sum_all*100)
+                print "normal_reset: %i %%" %(normal_reset/sum_all*100)
+                print "reward/epoch: %2f" %total_reward
+                reward_tr.append(total_reward)
+                np.savetxt('reward_tr.txt', reward_tr)
+                total_reward = 0
                 collision = 0
                 arrive = 0
                 normal_reset = 0
-            map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
-            step = 0
 
-            # print feedback_input
-            # print status
-            # print "feedback: ", feedback_input.shape
-            # print "dscore: ", dscore_input.shape
             dscore_input = dscore_input.T
-            # print "dscore: "
-            # print dscore_input
-            # print "feedback_input"
-            # print feedback_input
+            # print "dscore",dscore_input.shape
+            # print "feedbac",feedback_input.shape
             dscore_input *= feedback_input
+
             dscore_input = dscore_input.T
-            # print "dscore_input: "
-            # print dscore_input
             gradient = policy_backward(dscore_input, h1_input, h2_input, env_input, model, reg)
             # sgd_update(model, gradient, learning_rate)
-            rmsprop_cache,model = rmsprop_update(model, gradient, learning_rate, rmsprop_cache)
 
-             # initial env
+            # step = 0
+            rmsprop_cache,model = rmsprop_update(model, gradient, learning_rate, rmsprop_cache, decay)
+            # map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+            # car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step)
+
+            # if status == 'collision':
+            #     # print status
+            #     # print last_car_location
+            #     car_location = last_car_location # keep last car_location
+            # else:
+            
+            # re set to initial env
+            step = 0
+            map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
             car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step)
+
             # print env
             env = env.ravel()
             env_round.append(env) # first env
