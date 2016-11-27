@@ -5,9 +5,10 @@ from cs231n.fast_layers import *
 from cs231n.layer_utils import *
 from simulator_gymstyle import *
 
-def discount_rewards(r):
-    gamma = 0.9# discount factor for reward
+epsilon = 0.9 # eps greedy
+gamma = 0.9# discount factor for reward
 
+def discount_rewards(r):
     """ take 1D float array of rewards and compute discounted reward """
     discounted_r = np.zeros_like(r, dtype=float)
     running_add = 0
@@ -32,7 +33,6 @@ def policy_forward(state, model, action=None):
         probs = np.exp(action_scores - np.max(action_scores))
         probs /= np.sum(probs)
         np.random.seed()
-        epsilon = 0.5 # eps greedy
         dice = np.random.uniform() # roll the dice!
         probs = probs[0]
         # print probs
@@ -40,21 +40,29 @@ def policy_forward(state, model, action=None):
             action = np.argmax(probs)
         else:
             action = np.random.choice(4, 1, p = probs)
+            action = action[0]
         return action
 
     else:
+        # print action
         # train mode
         loss, daction = softmax_loss(action_scores, action)
         daction = -daction
         cache = layer1_cache, layer2_cache, layer3_cache
+
+        # probs = np.exp(action_scores - np.max(action_scores, axis=1, keepdims=True))
+        # probs /= np.sum(probs, axis=1, keepdims=True)
+        # N = action_scores.shape[0]
+        # daction = probs.copy()
+        # daction[np.arange(N), action] -= 1 # fake label
+        # # print('daction : ', daction)
+        # # print action
+        # daction /= N
+        # daction = -daction # grad that encourages the action that was taken to be taken if feedback > 0 
+        # print('daction : ', daction)
         return cache, daction
 
-    # N = action_score.shape[0]
-    # dx = probs.copy()
-    # dx[action] -= 1 # fake label
-    # dx /= N
-    # dx = -dx # grad that encourages the action that was taken to be taken if feedback > 0 
-    # # print "dx"
+        # print "dx"
     # # print dx
 
 # reward should be a vector e.g [0, 0, 1, 0]
@@ -62,11 +70,10 @@ def policy_backward(feedback, cache, daction, reg, model):
 
     # pre process feedback and daction
     dr = discount_rewards(feedback) # discouted rewards for this round, shape: step
-
     # standardize the rewards to be unit normal (helps control the gradient estimator variance)
-    if len(dr) > 1:
-        dr -= np.mean(dr)
-        dr /= np.std(dr)
+    # if len(dr) > 1:
+    #     dr -= np.mean(dr)
+    #     dr /= np.std(dr)
 
     # print('daction shape: ', daction.shape)
     # print('dr shape: ', dr.shape)
@@ -74,7 +81,7 @@ def policy_backward(feedback, cache, daction, reg, model):
     # print('dr : ', dr)
     daction *= dr # magic of PG
 
-    # print('dr : ', daction)
+    # print('daction2 : ', daction)
 
     # """ backward pass.  """
     # unpack cache

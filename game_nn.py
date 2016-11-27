@@ -81,7 +81,6 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
         action = policy_forward(state_vector, model)
         state_round.append(state_vector) # keep state
         action_round.append(action) # keep action
-
         # do action
         state, feedback, terminate, status = env.step(action)
         state_vector = state.ravel()
@@ -118,7 +117,10 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
 
             # list to batch
             state_batch = np.vstack(state_round)
-            action_batch = np.vstack(action_round)
+            # action_batch = np.vstack(action_round)
+            action_batch = action_round
+
+
             feedback_batch = np.vstack(feedback_round)
 
             # redo mini batch forward to get cache
@@ -136,6 +138,6 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             # reset batch
             state_round = []
             feedback_round = [] 
-            daction_round = []
+            action_round = []
 
 

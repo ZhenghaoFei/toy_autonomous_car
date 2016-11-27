@@ -8,7 +8,7 @@ H1 = 50 # number of hidden layer neurons
 H2 = 50
 batch_size = 1 # every how many episodes to do a param update?
 lr_decay = 0.995 # decay factor for RMSProp leaky sum of grad^2
-learning_rate = 1e-6
+learning_rate = 1e-4
 
 resume = False # resume from previous checkpoint?
 
