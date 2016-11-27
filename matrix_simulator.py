@@ -5,25 +5,31 @@ import matplotlib.animation as animation
 WALL_VALUE = 10
 CAR_VALUE = 100
 def random_map(dim1, dim2, propobility):
-  # np.random.seed(3)
-  map_matrix = np.zeros([dim1, dim2])
-  for i in range(dim1):
-    for j in range(dim2):
-      a = np.random.random(1)
-      if a < propobility:
-        map_matrix[i,j] = WALL_VALUE
-  start = np.random.random_integers(0, dim1-1, 2)
-  start_x = start[0]
-  start_y = start[1]
-  start = start_x, start_y
-  map_matrix[start] = 0
-
-  goal = np.random.random_integers(0, dim1-1, 2)
-  goal_x = goal[0]
-  goal_y = goal[1]
-  goal = goal_x, goal_y
-  map_matrix[goal] = 200
-  return map_matrix, start, goal
+    fix_start_end = True
+    # np.random.seed(3)
+    map_matrix = np.zeros([dim1, dim2])
+    for i in range(dim1):
+        for j in range(dim2):
+          a = np.random.random(1)
+          if a < propobility:
+            map_matrix[i,j] = WALL_VALUE
+    if fix_start_end:
+        start = np.array([0, 0])
+    else:
+        start = np.random.random_integers(0, dim1-1, 2)
+    start_x = start[0]
+    start_y = start[1]
+    start = start_x, start_y
+    map_matrix[start] = 0
+    if fix_start_end:
+        goal = np.array([3, 3])
+    else:
+        goal = np.random.random_integers(0, dim1-1, 2)
+    goal_x = goal[0]
+    goal_y = goal[1]
+    goal = goal_x, goal_y
+    map_matrix[goal] = 200
+    return map_matrix, start, goal
 
 def plot_map(map_matrix, car_location):
     map_matrix[car_location] = CAR_VALUE# use three to present car

@@ -8,13 +8,13 @@ H1 = 50 # number of hidden layer neurons
 H2 = 50
 batch_size = 1 # every how many episodes to do a param update?
 lr_decay = 0.995 # decay factor for RMSProp leaky sum of grad^2
-learning_rate = 1e-5
+learning_rate = 1e-6
 
 resume = False # resume from previous checkpoint?
 
 dim1 = 5
 dim2 = 5
-probobility = 0.0 
+probobility = 0.1
 map_prameters = dim1, dim2 ,probobility
 # model initialization
 D = (dim1 + 2) * (dim2 + 2) # input dimensionality, because 1 pad

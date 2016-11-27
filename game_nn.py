@@ -20,27 +20,6 @@ def discount_rewards(r):
         discounted_r[t] = running_add
     return discounted_r
 
-def softmax_loss(x, y):
-    """
-    Computes the loss and gradient for softmax classification.
-    Inputs:
-    - x: Input data, of shape (N, C) where x[i, j] is the score for the jth class
-    for the ith input.
-    - y: Vector of labels, of shape (N,) where y[i] is the label for x[i] and
-    0 <= y[i] < C
-    Returns a tuple of:1
-    - loss: Scalar giving the loss
-    - dx: Gradient of the loss with respect to x
-    """
-    probs = np.exp(x - np.max(x, axis=1, keepdims=True))
-    probs /= np.sum(probs, axis=1, keepdims=True)
-    N = x.shape[0]
-    # loss = -np.sum(np.log(probs[np.arange(N), y])) / N
-    dx = probs.copy()
-    dx[np.arange(N), y] -= 1
-    dx /= N
-    return probs, dx
-
 def policy_forward(env, model):
     h1 = np.dot(model['W1'], env) #should be 200 * 1
     h1[h1<0] = 0 # ReLU nonlinearity
@@ -190,7 +169,8 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     for i in range(max_iter):
         action, h1, h2, dscore = policy_forward(env, model)
         last_car_location = car_location# keep last car_location
-        car_location, feedback, env, goal_distance, step, reset, status = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
+        car_location, feedback, env, goal_distance, step, reset, status = simulator(
+            map_matrix, initial_car_location, goal_location, goal_distance, step, car_location=car_location, action=action)
         total_reward += feedback
         # print("car_loc:", last_car_location)
         # print("action:", action)
