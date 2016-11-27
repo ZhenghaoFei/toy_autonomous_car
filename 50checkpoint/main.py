@@ -12,16 +12,38 @@ learning_rate = 1e-6
 
 resume = False # resume from previous checkpoint?
 
-dim = 10
+dim1 = 5
+dim2 = 5
 probobility = 0.1
-map_prameters = dim, probobility
+map_prameters = dim1, dim2 ,probobility
 # model initialization
-D = (dim + 2)**2 # input dimensionality, because 1 pad
+D = (dim1 + 2) * (dim2 + 2) # input dimensionality, because 1 pad
 model = creat_model(D, H1, H2)
 if resume:
     print "model resumed"
     model = load_model(model)
 
+
+# initialize environment
+# map_matrix = np.array\
+#      ([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.,  0.,  0.],
+#        [ 1.,  0.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 1.,  0.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 1.,  1.,  1.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  0.,  0.,  0.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  1.,  1.,  1.,  1.],
+#        [ 0.,  0.,  0.,  1.,  0.,  0.,  0.,  0.,  0.,  1.],
+#        [ 0.,  0.,  0.,  1.,  1,  1.,  1.,  1.,  1.,  1.],
+#        [ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.]])
+
+
+
+# goal_location = 7, 8 # define goal location
+# map_matrix[goal_location] = 2
+# initial_car_location = 1, 1 # initial car location x and y
+# car_location = initial_car_location
+# car_location_save =[]
 
 # train
 train_game_rlnn(model, map_prameters, learning_rate, reg=1, decay=lr_decay, max_iter=2000000)

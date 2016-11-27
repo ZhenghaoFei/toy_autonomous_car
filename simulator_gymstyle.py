@@ -74,7 +74,7 @@ class sim_env(object):
             # print(self.map_matrix)
             self.car_location = self.start
             self.done = True
-            return map_env, feedback, self.done , status
+            return map_env, feedback, self.done, status
 
         # do action, move the car
         car_x, car_y = self.car_location
