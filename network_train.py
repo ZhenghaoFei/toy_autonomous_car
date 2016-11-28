@@ -9,11 +9,17 @@ from network import *
 import matplotlib.pyplot as plt
 
 debug = False
+epsilon_decay = 0.995
 
-
-def creat_model(D, H1, H2, C=4):
+def creat_model(D, Conv_num_filters, Conv_filter_size, H1, H2, C=4):
     model = {}
-    model['W1'] = np.random.randn(D, H1) / np.sqrt(D * H1) # "Xavier" initialization
+
+    model['Conv1_W1'] = np.random.normal(
+      0, 1e-3, (Conv_num_filters, 1, Conv_filter_size, Conv_filter_size))
+    model['Conv1_b1'] = np.zeros(Conv_num_filters)
+
+    conv_out_size = D*Conv_num_filters
+    model['W1'] = np.random.randn(conv_out_size, H1) / np.sqrt(conv_out_size * H1) # "Xavier" initialization
     model['b1'] = 0
     # model['W2'] = np.random.randn(H1,H2) / np.sqrt(H1)
     # model['b2'] = np.random.randn(H2)
@@ -23,11 +29,6 @@ def creat_model(D, H1, H2, C=4):
     model['W3'] = np.random.randn(H2, C) / np.sqrt(H2 * C) 
     model['b3'] = 0
 
-    # model['b2'] = np.random.randn(4)
-    if debug:
-        print "W1:", model['W1'].shape
-        print "W2:", model['W2'].shape
-        print "W3:", model['W3'].shape
 
     return model
 
@@ -41,6 +42,11 @@ def load_model(model):
     for k,v in model.iteritems():
         model[k] = np.loadtxt('%s.txt' %k)    
     return model
+
+# preprocess state for input
+def prepro(state):
+    state = state.reshape(1, 1, state.shape[0], state.shape[1])
+    return state
 
 # training process
 def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, max_iter = 10,plotmap=False):
@@ -65,12 +71,14 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     simu_round = 0
 
     # from 2d matrix to 1d vector
-    state_vector = state.ravel()
-    state_vector = state_vector.reshape(1, -1)
+    state_vector = prepro(state)
+    # state_vector = state.ravel()
+    # state_vector = state_vector.reshape(1, -1)
     # book keeping for one round and initialize
     state_round = []
     feedback_round = [] 
     action_round = []
+    epsilon = 0.5  # eps greedy
 
     total_reward = 0
     reward_tr = []
@@ -78,13 +86,15 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     for i in range(max_iter):
         
         # predict action from state
-        action = policy_forward(state_vector, model)
+        action = policy_forward(state_vector, model, epsilon=epsilon)
         state_round.append(state_vector) # keep state
         action_round.append(action) # keep action
         # do action
         state, feedback, terminate, status = env.step(action)
-        state_vector = state.ravel()
-        state_vector = state_vector.reshape(1, -1)
+        # print state
+        state_vector = prepro(state)
+        # state_vector = state.ravel()
+        # state_vector = state_vector.reshape(1, -1)
 
         feedback_round.append(feedback) # keep feedback
         total_reward += feedback
@@ -100,6 +110,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
                 arrive += 1.0
             else:
                 normal_reset += 1.0
+                
             if simu_round%100 ==0:
                 # learning_rate *= decay
                 # print "lr: ", learning_rate
@@ -108,15 +119,19 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
                 print "arrive: %i %%" %(arrive/sum_all*100)
                 print "normal_reset: %i %%" %(normal_reset/sum_all*100)
                 print "reward/epoch: %2f" %total_reward
+                print "epsilon: %f" %epsilon
+
                 reward_tr.append(total_reward)
                 np.savetxt('reward_tr.txt', reward_tr)
                 total_reward = 0
                 collision = 0
                 arrive = 0
                 normal_reset = 0
+                epsilon*= epsilon_decay
 
             # list to batch
             state_batch = np.vstack(state_round)
+            # state_batch = state_batch.reshape(1, 1, state_batch.shape[1], state_batch.shape[2])
             # action_batch = np.vstack(action_round)
             action_batch = action_round
 
@@ -124,7 +139,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             feedback_batch = np.vstack(feedback_round)
 
             # redo mini batch forward to get cache
-            cache, daction = policy_forward(state_batch, model, action_batch) 
+            cache, daction = policy_forward(state_batch, model, action=action_batch) 
             # minibatch get gradient
             gradient = policy_backward(feedback_batch, cache, daction, reg, model)
 

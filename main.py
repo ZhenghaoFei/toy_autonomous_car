@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from game_nn import *
+# import matplotlib.pyplot as plt
+from network_train import *
 from matrix_simulator import *
 
 # hyperparameters
@@ -8,7 +8,7 @@ H1 = 50 # number of hidden layer neurons
 H2 = 50
 batch_size = 1 # every how many episodes to do a param update?
 lr_decay = 0.995 # decay factor for RMSProp leaky sum of grad^2
-learning_rate = 1e-4
+learning_rate = 1e-6
 
 resume = False # resume from previous checkpoint?
 
@@ -17,14 +17,16 @@ probobility = 0.1
 map_prameters = dim, probobility
 # model initialization
 D = (dim + 2)**2 # input dimensionality, because 1 pad
-model = creat_model(D, H1, H2)
+Conv_num_filters = 2
+Conv_filter_size = 3
+model = creat_model(D, Conv_num_filters ,Conv_filter_size, H1, H2)
 if resume:
     print "model resumed"
     model = load_model(model)
 
 
 # train
-train_game_rlnn(model, map_prameters, learning_rate, reg=1, decay=lr_decay, max_iter=2000000)
+train_game_rlnn(model, map_prameters, learning_rate, reg=1, decay=lr_decay, max_iter=200000000)
 save_model(model)
 
 # # test

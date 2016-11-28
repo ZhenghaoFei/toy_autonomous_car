@@ -5,7 +5,6 @@ from cs231n.fast_layers import *
 from cs231n.layer_utils import *
 from simulator_gymstyle import *
 
-epsilon = 0.9 # eps greedy
 gamma = 0.9# discount factor for reward
 
 def discount_rewards(r):
@@ -19,11 +18,17 @@ def discount_rewards(r):
     return discounted_r
 
 
-def policy_forward(state, model, action=None):
+def policy_forward(state, model, epsilon = None, action=None):
+    Conv1_W1, Conv1_b1 = model['Conv1_W1'], model['Conv1_b1']
     W1, b1 = model['W1'], model['b1']
     W2, b2 = model['W2'], model['b2']
     W3, b3 = model['W3'], model['b3']
-    layer1_out, layer1_cache = affine_relu_forward(state, W1, b1)
+
+    filter_size = Conv1_W1.shape[2]
+    conv_param = {'stride': 1, 'pad': (filter_size - 1) / 2}
+
+    conv1_out, conv1_cache = conv_relu_forward(state, Conv1_W1, Conv1_b1, conv_param)
+    layer1_out, layer1_cache = affine_relu_forward(conv1_out, W1, b1)
     layer2_out, layer2_cache = affine_relu_forward(layer1_out, W2, b2)
     action_scores, layer3_cache = affine_forward(layer2_out, W3, b3)
 
@@ -36,7 +41,7 @@ def policy_forward(state, model, action=None):
         dice = np.random.uniform() # roll the dice!
         probs = probs[0]
         # print probs
-        if dice < epsilon:
+        if dice > epsilon:
             action = np.argmax(probs)
         else:
             action = np.random.choice(4, 1, p = probs)
@@ -48,7 +53,7 @@ def policy_forward(state, model, action=None):
         # train mode
         loss, daction = softmax_loss(action_scores, action)
         daction = -daction
-        cache = layer1_cache, layer2_cache, layer3_cache
+        cache = conv1_cache, layer1_cache, layer2_cache, layer3_cache
 
         # probs = np.exp(action_scores - np.max(action_scores, axis=1, keepdims=True))
         # probs /= np.sum(probs, axis=1, keepdims=True)
@@ -85,13 +90,16 @@ def policy_backward(feedback, cache, daction, reg, model):
 
     # """ backward pass.  """
     # unpack cache
-    layer1_cache, layer2_cache, layer3_cache = cache
+    conv1_cache, layer1_cache, layer2_cache, layer3_cache = cache
 
     dlayer3 = affine_backward(daction, layer3_cache)
     dlayer2 = affine_relu_backward(dlayer3[0], layer2_cache)
     dlayer1 = affine_relu_backward(dlayer2[0], layer1_cache)
-    
+    dcon1 = conv_relu_backward(dlayer1[0], conv1_cache)
+
     grads = {}
+    grads['Conv1_W1'] = dcon1[1] + 0.5 * reg * 2 * model['Conv1_W1']
+    grads['Conv1_b1'] = dcon1[2]
     grads['W1'] = dlayer1[1] + 0.5 * reg * 2 * model['W1']
     grads['b1'] = dlayer1[2] 
     grads['W2'] = dlayer2[1] + 0.5 * reg * 2 * model['W2']

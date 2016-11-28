@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-
+FIX_STARTEND = True
 class sim_env(object):
     def __init__(self, dim, propobility):
         self.dim = dim
@@ -25,15 +25,21 @@ class sim_env(object):
             self.map_matrix[i,j] = self.WALL_VALUE
 
       # random start
-      self.start = np.random.random_integers(0, self.dim-1, 2)
-      self.start = self.start[0], self.start[1]
+      if FIX_STARTEND:
+        self.start = 0, 0
+      else:
+          self.start = np.random.random_integers(0, self.dim-1, 2)
+          self.start = self.start[0], self.start[1]
       self.map_matrix[self.start] = 0
 
       self.car_location = self.start
 
       # random goal
-      self.goal = np.random.random_integers(0, self.dim-1, 2)
-      self.goal = self.goal[0], self.goal[1]
+      if FIX_STARTEND:
+        self.goal = self.dim-5, self.dim-5
+      else:
+          self.goal = np.random.random_integers(0, self.dim-1, 2)
+          self.goal = self.goal[0], self.goal[1]
       self.map_matrix[self.goal] = self.GOAL_VALUE
       self.current_step = 0
 
@@ -55,7 +61,6 @@ class sim_env(object):
         env_distance = 1 # env use car as center, sensing distance
         map_env = np.pad(self.map_matrix, env_distance,'constant', constant_values=self.WALL_VALUE)
         # map_env = np.copy(self.map_matrix)
-
         # if action == None:
         #     self.car_location = self.start
         #     car_x, car_y = self.car_location
