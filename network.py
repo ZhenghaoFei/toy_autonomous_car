@@ -13,7 +13,7 @@ def discount_rewards(r):
     running_add = 0
     for t in reversed(xrange(0, r.size)):
         if r[t] != 0: running_add = 0 # reset the sum, since this was a game boundary (pong specific!)
-        running_add = running_add * gamma + r[t]
+        running_add = running_add * gamma + r[t] 
         discounted_r[t] = running_add
     return discounted_r
 
@@ -22,7 +22,7 @@ def policy_forward(state, model, epsilon = None, action=None):
     Conv1_W1, Conv1_b1 = model['Conv1_W1'], model['Conv1_b1']
     W1, b1 = model['W1'], model['b1']
     W2, b2 = model['W2'], model['b2']
-    W3, b3 = model['W3'], model['b3']
+    W3, b3 = model['W3'], model['b3'] 
 
     filter_size = Conv1_W1.shape[2]
     conv_param = {'stride': 1, 'pad': (filter_size - 1) / 2}

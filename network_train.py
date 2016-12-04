@@ -78,7 +78,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
     state_round = []
     feedback_round = [] 
     action_round = []
-    epsilon = 0.5  # eps greedy
+    epsilon = 1  # eps greedy
 
     total_reward = 0
     reward_tr = []
@@ -110,7 +110,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
                 arrive += 1.0
             else:
                 normal_reset += 1.0
-                
+
             if simu_round%100 ==0:
                 # learning_rate *= decay
                 # print "lr: ", learning_rate
@@ -128,6 +128,7 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
                 arrive = 0
                 normal_reset = 0
                 epsilon*= epsilon_decay
+                epsilon = max(epsilon, 0.1)
 
             # list to batch
             state_batch = np.vstack(state_round)
