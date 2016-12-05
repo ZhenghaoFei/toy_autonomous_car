@@ -7,7 +7,7 @@ Algorithm and hyperparameter details can be found here:
 The algorithm is tested on the Pendulum-v0 OpenAI gym task 
 and developed with tflearn + Tensorflow
 
-Author: Patrick Emami
+Based on Patrick Emami's code and do modify parameter and structure to fit out problem
 """
 import tensorflow as tf
 import numpy as np
@@ -25,13 +25,13 @@ MAX_EPISODES = 50000
 # Max episode length
 MAX_EP_STEPS = 100
 # Base learning rate for the Actor network
-ACTOR_LEARNING_RATE = 0.001
+ACTOR_LEARNING_RATE = 0.00001
 # Base learning rate for the Critic Network
-CRITIC_LEARNING_RATE = 0.001
+CRITIC_LEARNING_RATE = 0.0001
 # Discount factor 
-GAMMA = 0.95
+GAMMA = 0.999
 # Soft target update param
-TAU = 0.01
+TAU = 0.001
 
 # ===========================
 #   Utility Parameters
@@ -265,9 +265,14 @@ def train(sess, env, actor, critic):
             alpha = 0.999**i
             a = actor.predict(np.reshape(s, (-1, 31* 48)))
             a = a[0]
-            a =  (1-alpha)*a + alpha*(np.random.rand(3)*2-1)
+            # print 'rand_a',rand_a
+            dice = np.random.rand(1)
+            if dice < alpha:
+                rand_a = np.random.rand(3)*2-1
+                a = rand_a
+            # a =  (1-alpha)*a + alpha*rand_a
             # print alpha
-            # print a
+            # print 'a',a
 
             # a[a>1] = 1
             # a[a<1] = -1
@@ -280,10 +285,10 @@ def train(sess, env, actor, critic):
             s2 = prepro(s2)
             # plt.imshow(s2)
             # plt.show()
-            if r < 0:
-                r = -1
-            elif r > 0:
-                r = 1
+            # if r < 0:
+            #     r = -1
+            # elif r > 0:
+            #     r = 1
             # print 'r: ',r
             replay_buffer.add(np.reshape(s, (31* 48)), np.reshape(a, (actor.a_dim,)), r,
                 terminal, np.reshape(s2, (31* 48)))
