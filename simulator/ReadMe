@@ -1,2 +1,0 @@
-# install pygame: To install this package with conda run:
-conda install -c tlatorre pygame=1.9.2

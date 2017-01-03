@@ -1,3 +1,4 @@
 *.pyc
 new_net/results/
 ddac-net/results/
+cs231n/
