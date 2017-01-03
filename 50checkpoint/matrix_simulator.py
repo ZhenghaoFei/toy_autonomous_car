@@ -36,11 +36,12 @@ def maze_gen(mx,my):
     dx = [0, 1, 0, -1]; dy = [-1, 0, 1, 0] # 4 directions to move in the maze
     # start the maze from (0, 0)
     stack = [(np.random.randint(0, mx - 1), np.random.randint(0, my - 1))]#[(0, 0)]
-    start = stack[0]
+    #start = stack[0]
    
     while len(stack) > 0:
         (cx, cy) = stack[-1]
         maze[cy][cx] = WALL_VALUE
+	start = (cy,cx)
         # find a new cell to add
         nlst = [] # list of available neighbors
         for i in range(4):
@@ -87,7 +88,7 @@ def plot_map(map_matrix, car_location):
     map_matrix[car_location] = CAR_VALUE# use three to present car
     plt.imshow(map_matrix, interpolation='none', cmap='Greys')
 
-def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, step, max_step = 20, car_location = None, action = None, verbos=False):
+def simulator(map_matrix, initial_car_location, goal_location, last_goaldistance, step, max_step = 30, car_location = None, action = None, verbos=False):
     reset = False
     feedback = 0 # default feedback 
     env =  np.zeros([10, 10])	
