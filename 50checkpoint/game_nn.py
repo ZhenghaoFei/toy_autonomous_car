@@ -1,8 +1,8 @@
 import numpy as np
 from matrix_simulator import *
-from cs231n.layers import *
-from cs231n.fast_layers import *
-from cs231n.layer_utils import *
+# from cs231n.layers import *
+# from cs231n.fast_layers import *
+# from cs231n.layer_utils import *
 import matplotlib.pyplot as plt
 
 debug = False
@@ -140,7 +140,8 @@ def load_model(model):
 def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, max_iter = 10,plotmap=False):
     dim1, dim2, probobility = map_prameters
     rmsprop_cache = { k : np.zeros_like(v) for k,v in model.iteritems() } # rmsprop memory
-    map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+    # map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+    map_matrix, initial_car_location, goal_location = maze_gen(dim1, dim2)
     if plotmap:
         plot_map(map_matrix, initial_car_location)
         plt.show()
@@ -253,7 +254,8 @@ def train_game_rlnn(model, map_prameters, learning_rate, reg=0, decay = 0.995, m
             
             # re set to initial env
             step = 0
-            map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+            # map_matrix, initial_car_location, goal_location = random_map(dim1, dim2, probobility)
+            map_matrix, initial_car_location, goal_location = maze_gen(dim1, dim2)
             car_location, feedback, env = simulator(map_matrix, initial_car_location, goal_location, goal_distance, step)
 
             # print env
