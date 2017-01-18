@@ -1,46 +1,49 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from mazegen import make_maze
 
 FIX_STARTEND = True
 class sim_env(object):
     def __init__(self, dim, propobility):
         self.dim = dim
-        self.propobility = propobility
+        # self.propobility = propobility
         self.WALL_VALUE = 10
         self.CAR_VALUE = 100
         self.GOAL_VALUE = 200
-        self.max_step = 20
+        self.max_step = 100
 
         self.state_dim = (self.dim + 2) * (self.dim + 2)
         self.action_dim = 4
 
     def reset(self):
       # np.random.seed(3)
-      self.map_matrix = np.zeros([self.dim, self.dim])
-      for i in range(self.dim):
-        for j in range(self.dim):
-          a = np.random.random(1)
-          if a < self.propobility:
-            self.map_matrix[i,j] = self.WALL_VALUE
+      # self.map_matrix = np.zeros([self.dim, self.dim])
+      self.map_matrix, self.start, self.goal = make_maze(self.dim, self.dim, self.WALL_VALUE)
+      # for i in range(self.dim):
+      #   for j in range(self.dim):
+      #     a = np.random.random(1)
+      #     if a < self.propobility:
+      #       self.map_matrix[i,j] = self.WALL_VALUE
+
           # pass
 
-      # random start
-      if FIX_STARTEND:
-          self.start = 0, 0
-      else:
-          self.start = np.random.random_integers(0, self.dim-1, 2)
-          self.start = self.start[0], self.start[1]
+      # # random start
+      # if FIX_STARTEND:
+      #     self.start = 0, 0
+      # else:
+      #     self.start = np.random.random_integers(0, self.dim-1, 2)
+      #     self.start = self.start[0], self.start[1]
       self.map_matrix[self.start] = 0
 
       self.car_location = self.start
 
-      # random goal
-      if FIX_STARTEND:
-          self.goal = self.dim-5, self.dim-5
-      else:
-          self.goal = np.random.random_integers(0, self.dim-1, 2)
-          self.goal = self.goal[0], self.goal[1]
+      # # random goal
+      # if FIX_STARTEND:
+      #     self.goal = self.dim-5, self.dim-5
+      # else:
+      #     self.goal = np.random.random_integers(0, self.dim-1, 2)
+      #     self.goal = self.goal[0], self.goal[1]
       self.map_matrix[self.goal] = self.GOAL_VALUE
       self.current_step = 0
 
