@@ -1,82 +1,57 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from mazegen import make_maze
 
+FIX_STARTEND = True
 
 class sim_env(object):
-    def __init__(self, dim, propobility):
+    def __init__(self, dim):
         self.dim = dim
-        self.propobility = propobility
         self.WALL_VALUE = 10
         self.CAR_VALUE = 100
         self.GOAL_VALUE = 200
-        self.max_step = 20
-
-        self.state_dim = (self.dim + 2) * (self.dim + 2)
+        self.max_step = 100
+        self.state_dim = [(self.dim + 2) , (self.dim + 2)]
         self.action_dim = 4
 
     def reset(self):
       # np.random.seed(3)
-      self.map_matrix = np.zeros([self.dim, self.dim])
-      for i in range(self.dim):
-        for j in range(self.dim):
-          a = np.random.random(1)
-          if a < self.propobility:
-            self.map_matrix[i,j] = self.WALL_VALUE
-
-      # random start
-      self.start = np.random.random_integers(0, self.dim-1, 2)
-      self.start = self.start[0], self.start[1]
+      self.map_matrix, self.start, self.goal = make_maze(self.dim, self.dim, self.WALL_VALUE)
       self.map_matrix[self.start] = 0
 
       self.car_location = self.start
-
-      # random goal
-      self.goal = np.random.random_integers(0, self.dim-1, 2)
-      self.goal = self.goal[0], self.goal[1]
       self.map_matrix[self.goal] = self.GOAL_VALUE
       self.current_step = 0
 
-      env_distance = 1 # env use car as center, sensing distance
-      map_env = np.pad(self.map_matrix, env_distance,'constant', constant_values=self.WALL_VALUE)
-      return map_env
+      # pad the environment edge as wall to prevent the car move out side
+      self.map_env = np.pad(self.map_matrix, 1,'constant', constant_values=self.WALL_VALUE)
+      temp_env = np.copy(self.map_env) # this env is for return with changing car location
+      car_x, car_y = self.car_location
+      env_x = car_x + 1
+      env_y = car_y + 1
+      env_car_location = env_x, env_y
+      temp_env[env_car_location] = self.CAR_VALUE
+
+      return temp_env
 
 
-    # def plot_map(map_matrix, self.car_location):
-    #     map_matrix[self.car_location] = CAR_VALUE# use three to present car
-    #     plt.imshow(map_matrix, interpolation='none')
+    def plot_map():
+        # make a copy to prevent change in the real map
+        plot_map = np.copy(self.map_env)
+        plot_map[self.car_location] = self.CAR_VALUE
+        plt.imshow(plot_map, interpolation='none')
+        plt.show()
+
 
     def step(self, action):
         self.current_step += 1
         self.done = False
+        temp_env = np.copy(self.map_env) # this env is for return with changing car location
 
         feedback = 0 # default feedback 
-        # env =  np.zeros([10, 10])	
-        env_distance = 1 # env use car as center, sensing distance
-        map_env = np.pad(self.map_matrix, env_distance,'constant', constant_values=self.WALL_VALUE)
-        # map_env = np.copy(self.map_matrix)
-
-        # if action == None:
-        #     self.car_location = self.start
-        #     car_x, car_y = self.car_location
-        #     env_x = car_x + env_distance
-        #     env_y = car_y + env_distance
-        #     # env use car as center, sensing distance
-        #     map_env[env_x, env_y] = CAR_VALUE
-        #     # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
-        #     return self.car_location, feedback, map_env
-
-        # check if initial_location legal
-        if self.map_matrix[self.car_location] == self.WALL_VALUE:
-            status = "initial position error"
-            print "initial position error"
-            # print("check car loc", self.car_location)
-            # print(self.map_matrix)
-            self.car_location = self.start
-            self.done = True
-            return map_env, feedback, self.done , status
-
-        # do action, move the car
+      
+        # do action, move the car, 0-3 to represent move in four directions
         car_x, car_y = self.car_location
 
         if action == 0:
@@ -92,42 +67,35 @@ class sim_env(object):
     	
         self.car_location = car_x, car_y
 
-        env_x = car_x + env_distance
-        env_y = car_y + env_distance
-        env_location = env_x, env_y
-        # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
-        goal_distance = np.sqrt(np.sum((np.asarray(self.goal) - np.asarray(self.car_location))**2)) # the distance from goal
-        # print "goal_distance: ", goal_distance
+        # since the environment has pad
+        env_x = car_x + 1
+        env_y = car_y + 1
+        env_car_location = env_x, env_y
 
-        # print "step: ", step
+        # print "step: ", current_step
+
         # check status
         status = 'normal'
-        if map_env[env_location] == self.WALL_VALUE:
+        if temp_env[env_car_location] == self.WALL_VALUE:
             # print "collision"
             feedback = -1 # collision feedback
             self.done = True
             status = 'collision'
-            # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
 
-        elif map_env[env_location] == 0:
-            # improve = last_goaldistance - goal_distance # whether approach goal
-            # if improve > 0:
-            #     feedback = 0.001 # good moving feedback
-            # elif improve < 0:
-            #     feedback = -0.002 # bad moving feedback
+        elif temp_env[env_car_location] == 0:
             if self.current_step >= self.max_step:
+                # print "exceed max step"
                 feedback = -1
+                status = 'exceed max step'
                 self.done = True
                 # print "self.done"
 
-        elif map_env[env_location] == self.GOAL_VALUE:
+        elif temp_env[env_car_location] == self.GOAL_VALUE:
             # print "congratulations! You arrive destination"
-            feedback = 10 # get goal feedback
+            feedback = 1 # get goal feedback
             self.done = True
             status = 'arrive'
-        map_env[env_location] = self.CAR_VALUE
 
-        # map_env = map_env.ravel
-        # env = map_env[env_x - env_distance:env_x + env_distance + 1, env_y - env_distance: env_y + env_distance + 1]
+        temp_env[env_car_location] = self.CAR_VALUE
 
-        return map_env, feedback, self.done, status
+        return temp_env, feedback, self.done, status
