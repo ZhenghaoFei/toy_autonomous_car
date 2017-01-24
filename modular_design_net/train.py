@@ -15,13 +15,13 @@ from simulator_gymstyle_old import *
 # Max episode length    
 MAX_EP_STEPS = 1000
 # Base learning rate for the Actor network
-ACTOR_LEARNING_RATE = 1e-7
+ACTOR_LEARNING_RATE = 1e-4
 # Base learning rate for the Critic Network
-CRITIC_LEARNING_RATE = 1e-6     
+CRITIC_LEARNING_RATE = 1e-4
 # Discount factor 
-GAMMA = 0.7
+GAMMA = 0.9
 # Soft target update param
-TAU = 0.001
+TAU = 0.01
 TARGET_UPDATE_STEP = 100
 SAVE_STEP = 10000
 EPS = 0.0
@@ -29,7 +29,8 @@ EPS = 0.0
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 5
+MAP_SIZE  = 2
+PROB = 0
 # Directory for storing tensorboard summary results
 SUMMARY_DIR = './results/'
 RANDOM_SEED = 1234
@@ -91,6 +92,9 @@ class ActorNetwork(object):
         # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
         # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
         net = tflearn.fully_connected(inputs, 64, activation='relu')
+        net = tflearn.layers.normalization.batch_normalization(net)
+
+
         # net = tflearn.fully_connected(net, 300, activation='relu')
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
@@ -169,6 +173,7 @@ class CriticNetwork(object):
         # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
         # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
         net = tflearn.fully_connected(inputs, 64, activation='relu')
+        net = tflearn.layers.normalization.batch_normalization(net)
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
@@ -176,11 +181,12 @@ class CriticNetwork(object):
         t2 = tflearn.fully_connected(action, 64)
 
         net = tflearn.activation(tf.matmul(net,t1.W) + tf.matmul(action, t2.W) + t2.b, activation='relu')
+        net = tflearn.layers.normalization.batch_normalization(net)
 
         # linear layer connected to 1 output representing Q(s,a) 
         # Weights are init to Uniform[-3e-3, 3e-3]
-        w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        out = tflearn.fully_connected(net, 1, weights_init=w_init)
+        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
+        out = tflearn.fully_connected(net, 1)
         return inputs, action, out
 
     def train(self, inputs, action, predicted_q_value):
@@ -281,7 +287,8 @@ def train(sess, env, actor, critic, global_step):
         while True:
             j += 1
             a = actor.predict(np.reshape(s, np.hstack((1, actor.s_dim))))
-            action_prob = a[0]
+            a = a[0]
+            action_prob = a
 
             np.random.seed()
 
@@ -292,17 +299,19 @@ def train(sess, env, actor, critic, global_step):
             # print'actionprob:', action_prob
 
             # print(action)
+            # print(a)
 
             s2, r, terminal, info = env.step(action)
+            # print r, info
             # plt.imshow(s2, interpolation='none')
             # plt.show()
 
             s2 = prepro(s2)
 
             # print(np.reshape(s, (actor.s_dim,)).shape)
-            replay_buffer.add(np.reshape(s, (actor.s_dim)), np.reshape(a, (actor.a_dim,)), r, \
-                terminal, np.reshape(s2, (actor.s_dim)))
-
+            replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, (actor.a_dim,)), r, \
+                terminal, np.reshape(s2, (actor.s_dim,)))
+            
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
             if replay_buffer.size() > MINIBATCH_SIZE:     
@@ -330,7 +339,7 @@ def train(sess, env, actor, critic, global_step):
                 actor.train(s_batch, grads[0])
 
             # Update target networks every 1000 iter
-            if i%TARGET_UPDATE_STEP == 0:
+            # if i%TARGET_UPDATE_STEP == 0:
                 actor.update_target_network()
                 critic.update_target_network()
 
@@ -379,9 +388,9 @@ def main(_):
  
         global_step = tf.Variable(0, name='global_step', trainable=False)
 
-        env = sim_env(5, 0.) # creat 
-        np.random.seed(RANDOM_SEED)
-        tf.set_random_seed(RANDOM_SEED)
+        env = sim_env(MAP_SIZE, PROB) # creat 
+        # np.random.seed(RANDOM_SEED)
+        # tf.set_random_seed(RANDOM_SEED)
 
         # state_dim = np.prod(env.observation_space.shape)
         state_dim = [env.state_dim[0], env.state_dim[1], 1]

@@ -37,7 +37,7 @@ class sim_env(object):
 
       # random goal
       if FIX_STARTEND:
-          self.goal = self.dim-2, self.dim-2
+          self.goal = self.dim-1, self.dim-1
       else:
           self.goal = np.random.random_integers(0, self.dim-1, 2)
           self.goal = self.goal[0], self.goal[1]
@@ -125,7 +125,7 @@ class sim_env(object):
             if self.current_step >= self.max_step:
                 feedback = -1
                 self.done = True
-                # print "self.done"
+                status = 'max_step'
 
         elif map_env[env_location] == self.GOAL_VALUE:
             # print "congratulations! You arrive destination"
