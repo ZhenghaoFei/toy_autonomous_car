@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 
 
 def make_maze(mx, my, WALL_VALUE):
+	# np.random.seed(6)
+
 	maze = np.zeros((my, mx))
 	dx = [0, 1, 0, -1]; dy = [-1, 0, 1, 0] # 4 directions to move in the maze
 	# start the maze from (0, 0)

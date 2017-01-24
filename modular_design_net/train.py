@@ -1,14 +1,4 @@
-""" 
-Implementation of DDPG - Pong - Deep Deterministic Policy Gradient
 
-Algorithm and hyperparameter details can be found here: 
-    http://arxiv.org/pdf/1509.02971v2.pdf
-
-The algorithm is tested on the Pendulum-v0 OpenAI gym task 
-and developed with tflearn + Tensorflow
-
-Author: Patrick Emami
-"""
 import tensorflow as tf
 import numpy as np
 import tflearn
@@ -16,24 +6,25 @@ import matplotlib.pyplot as plt
 import time
 
 from replay_buffer import ReplayBuffer
-from simulator_gymstyle import *
+from simulator_gymstyle_old import *
 
 # ==========================
 #   Training Parameters
 # ==========================
 
-# Max episode length
+# Max episode length    
 MAX_EP_STEPS = 1000
 # Base learning rate for the Actor network
-ACTOR_LEARNING_RATE = 1e-6
+ACTOR_LEARNING_RATE = 1e-7
 # Base learning rate for the Critic Network
-CRITIC_LEARNING_RATE = 1e-6
+CRITIC_LEARNING_RATE = 1e-6     
 # Discount factor 
-GAMMA = 0.9
+GAMMA = 0.7
 # Soft target update param
 TAU = 0.001
 TARGET_UPDATE_STEP = 100
 SAVE_STEP = 10000
+EPS = 0.0
 # ===========================
 #   Utility Parameters
 # ===========================
@@ -43,8 +34,8 @@ MAP_SIZE  = 5
 SUMMARY_DIR = './results/'
 RANDOM_SEED = 1234
 # Size of replay buffer
-BUFFER_SIZE = 1000000
-MINIBATCH_SIZE = 1024
+BUFFER_SIZE = 10000
+MINIBATCH_SIZE = 64
 
 # ===========================
 #   Actor and Critic DNNs
@@ -61,16 +52,17 @@ class ActorNetwork(object):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
+
         self.learning_rate = learning_rate
         self.tau = tau
 
         # Actor Network
-        self.inputs, self.out= self.create_actor_network()
+        self.inputs, self.out, self.scaled_out = self.create_actor_network()
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
-        self.target_inputs, self.target_out = self.create_actor_network()
+        self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
         
         self.target_network_params = tf.trainable_variables()[len(self.network_params):]
 
@@ -84,11 +76,13 @@ class ActorNetwork(object):
         self.action_gradient = tf.placeholder(tf.float32, [None, self.a_dim])
         
         # Combine the gradients here 
-        self.actor_gradients = tf.gradients(self.out, self.network_params, -self.action_gradient)
+        self.actor_gradients = tf.gradients(self.scaled_out, self.network_params, -self.action_gradient)
 
         # Optimization Op
+        self.actor_global_step = tf.Variable(0, name='actor_global_step', trainable=False)
+
         self.optimize = tf.train.AdamOptimizer(self.learning_rate).\
-            apply_gradients(zip(self.actor_gradients, self.network_params))
+            apply_gradients(zip(self.actor_gradients, self.network_params), global_step=self.actor_global_step)
 
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 
@@ -96,26 +90,30 @@ class ActorNetwork(object):
         inputs = tflearn.input_data(shape=self.s_dim)
         # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
         # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
-        net = tflearn.fully_connected(inputs, 128, activation='relu')
+        net = tflearn.fully_connected(inputs, 64, activation='relu')
+        # net = tflearn.fully_connected(net, 300, activation='relu')
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
+        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax', weights_init=w_init)
         out = tflearn.fully_connected(net, self.a_dim, activation='softmax')
 
-        return inputs, out
+        return inputs, out, out 
 
     def train(self, inputs, a_gradient):
+        # print("actor global step: ", self.actor_global_step.eval())
+
         self.sess.run(self.optimize, feed_dict={
             self.inputs: inputs,
             self.action_gradient: a_gradient
         })
 
     def predict(self, inputs):
-        return self.sess.run(self.out, feed_dict={
+        return self.sess.run(self.scaled_out, feed_dict={
             self.inputs: inputs
         })
 
     def predict_target(self, inputs):
-        return self.sess.run(self.target_out, feed_dict={
+        return self.sess.run(self.target_scaled_out, feed_dict={
             self.target_inputs: inputs
         })
 
@@ -150,15 +148,17 @@ class CriticNetwork(object):
 
         # Op for periodically updating target network with online network weights with regularization
         self.update_target_network_params = \
-            [self.target_network_params[i].assign(tf.mul(self.network_params[i], self.tau) + tf.mul(self.target_network_params[i], 1. - self.tau))
+            [self.target_network_params[i].assign(tf.mul(self.network_params[i], self.tau) + tf.mul(self.target_network_params[i], 1. -self.tau))
                 for i in range(len(self.target_network_params))]
     
         # Network target (y_i)
         self.predicted_q_value = tf.placeholder(tf.float32, [None, 1])
 
         # Define loss and optimization Op
+        self.critic_global_step = tf.Variable(0, name='critic_global_step', trainable=False)
+
         self.loss = tflearn.mean_square(self.predicted_q_value, self.out)
-        self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+        self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss, global_step=self.critic_global_step)
 
         # Get the gradient of the net w.r.t. the action
         self.action_grads = tf.gradients(self.out, self.action)
@@ -265,6 +265,8 @@ def train(sess, env, actor, critic, global_step):
     while True:
         i += 1
         s = env.reset()
+        # plt.imshow(s, interpolation='none')
+        # plt.show()
         s = prepro(s)
         j = 0
 
@@ -281,9 +283,14 @@ def train(sess, env, actor, critic, global_step):
             a = actor.predict(np.reshape(s, np.hstack((1, actor.s_dim))))
             action_prob = a[0]
 
-            # print'actionprob:', a
+            np.random.seed()
 
             action = np.random.choice(actor.a_dim, 1, p = action_prob)
+            action = action[0]
+            if np.random.rand() < EPS:
+                action = np.random.randint(4)
+            # print'actionprob:', action_prob
+
             # print(action)
 
             s2, r, terminal, info = env.step(action)
@@ -372,7 +379,7 @@ def main(_):
  
         global_step = tf.Variable(0, name='global_step', trainable=False)
 
-        env = sim_env(5) # creat 
+        env = sim_env(5, 0.) # creat 
         np.random.seed(RANDOM_SEED)
         tf.set_random_seed(RANDOM_SEED)
 
