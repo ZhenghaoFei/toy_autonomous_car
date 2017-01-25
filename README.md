@@ -1,6 +1,6 @@
 # toy_autonomous_car
 
-#Environment setup:
+## Environment setup:
 install tensorflow:
 
 > pip install tensorflow-gpu
@@ -12,6 +12,6 @@ install tf learn cutting edge version:
 
 The normal version has some problem with the newest tensorflow when use batch norm layer 
 
-# Run:
+## Run:
 > cd modular_design_net/
 > python train.py
