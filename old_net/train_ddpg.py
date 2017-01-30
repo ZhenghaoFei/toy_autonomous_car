@@ -1,45 +1,52 @@
+""" 
+Implementation of DDPG - Deep Deterministic Policy Gradient
 
+Algorithm and hyperparameter details can be found here: 
+    http://arxiv.org/pdf/1509.02971v2.pdf
+
+The algorithm is tested on the Pendulum-v0 OpenAI gym task 
+and developed with tflearn + Tensorflow
+
+Author: Patrick Emami
+"""
 import tensorflow as tf
 import numpy as np
+import gym 
 import tflearn
-import matplotlib.pyplot as plt
-import time
 
 from replay_buffer import ReplayBuffer
-from simulator_gymstyle_old import *
+from simulator_gymstyle import *
 
 # ==========================
 #   Training Parameters
 # ==========================
-
-# Max episode length    
+# Max training steps
+MAX_EPISODES = 50000
+# Max episode length
 MAX_EP_STEPS = 1000
 # Base learning rate for the Actor network
-ACTOR_LEARNING_RATE = 1e-4
+ACTOR_LEARNING_RATE = 0.0001
 # Base learning rate for the Critic Network
-CRITIC_LEARNING_RATE = 1e-4
+CRITIC_LEARNING_RATE = 0.001
 # Discount factor 
-GAMMA = 0.9
+GAMMA = 0.99
 # Soft target update param
 TAU = 0.001
-TARGET_UPDATE_STEP = 100
 
-MINIBATCH_SIZE = 512
-SAVE_STEP = 10000
-EPS = 0.0
+EVAL_EPISODES = 100
+
 # ===========================
 #   Utility Parameters
 # ===========================
-# map size
-MAP_SIZE  = 5
-PROBABILITY = 0.1
+
+# Directory for storing gym results
+MONITOR_DIR = './results/gym_ddpg'
 # Directory for storing tensorboard summary results
-SUMMARY_DIR = './results/'
+SUMMARY_DIR = './results/tf_ddpg'
 RANDOM_SEED = 1234
 # Size of replay buffer
 BUFFER_SIZE = 10000
-EVAL_EPISODES = 100
-
+MINIBATCH_SIZE = 64
 
 # ===========================
 #   Actor and Critic DNNs
@@ -52,21 +59,21 @@ class ActorNetwork(object):
     The output layer activation is a tanh to keep the action
     between -2 and 2
     """
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau):
+    def __init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-
+        self.action_bound = action_bound
         self.learning_rate = learning_rate
         self.tau = tau
 
         # Actor Network
-        self.inputs, self.scaled_out = self.create_actor_network()
+        self.inputs, self.out, self.scaled_out = self.create_actor_network()
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
-        self.target_inputs, self.target_scaled_out = self.create_actor_network()
+        self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
         
         self.target_network_params = tf.trainable_variables()[len(self.network_params):]
 
@@ -83,41 +90,22 @@ class ActorNetwork(object):
         self.actor_gradients = tf.gradients(self.scaled_out, self.network_params, -self.action_gradient)
 
         # Optimization Op
-        self.actor_global_step = tf.Variable(0, name='actor_global_step', trainable=False)
-
         self.optimize = tf.train.AdamOptimizer(self.learning_rate).\
-            apply_gradients(zip(self.actor_gradients, self.network_params), global_step=self.actor_global_step)
+            apply_gradients(zip(self.actor_gradients, self.network_params))
 
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 
     def create_actor_network(self): 
-        inputs = tflearn.input_data(shape=self.s_dim)
-        # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
-        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
-        net = tflearn.fully_connected(inputs, 64, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
-
-
-        # net = tflearn.fully_connected(net, 300, activation='relu')
+        inputs = tflearn.input_data(shape=[None, self.s_dim])
+        net = tflearn.fully_connected(inputs, 100, activation='relu')
+        net = tflearn.fully_connected(net, 50, activation='relu')
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax', weights_init=w_init)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax')
-
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='relu')
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        out = tflearn.fully_connected(net, self.a_dim, activation='softmax', weights_init=w_init)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax')
-
-        # out = tflearn.activations.softmax (net)
-        # scaled_out = tf.mul(out,1) # Scale output to -action_bound to action_bound
-
-        return inputs, out
+        out = tflearn.fully_connected(net, self.a_dim, activation='tanh', weights_init=w_init)
+        scaled_out = tf.mul(out, self.action_bound) # Scale output to -action_bound to action_bound
+        return inputs, out, scaled_out 
 
     def train(self, inputs, a_gradient):
-        # print("actor global step: ", self.actor_global_step.eval())
-
         self.sess.run(self.optimize, feed_dict={
             self.inputs: inputs,
             self.action_gradient: a_gradient
@@ -164,41 +152,35 @@ class CriticNetwork(object):
 
         # Op for periodically updating target network with online network weights with regularization
         self.update_target_network_params = \
-            [self.target_network_params[i].assign(tf.mul(self.network_params[i], self.tau) + tf.mul(self.target_network_params[i], 1. -self.tau))
+            [self.target_network_params[i].assign(tf.mul(self.network_params[i], self.tau) + tf.mul(self.target_network_params[i], 1. - self.tau))
                 for i in range(len(self.target_network_params))]
     
         # Network target (y_i)
         self.predicted_q_value = tf.placeholder(tf.float32, [None, 1])
 
         # Define loss and optimization Op
-        self.critic_global_step = tf.Variable(0, name='critic_global_step', trainable=False)
-
         self.loss = tflearn.mean_square(self.predicted_q_value, self.out)
-        self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss, global_step=self.critic_global_step)
+        self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
         # Get the gradient of the net w.r.t. the action
         self.action_grads = tf.gradients(self.out, self.action)
 
     def create_critic_network(self):
-        inputs = tflearn.input_data(shape=self.s_dim)
-        action = tflearn.input_data(shape=[None,self.a_dim])
-        # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
-        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
-        net = tflearn.fully_connected(inputs, 64, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
+        inputs = tflearn.input_data(shape=[None, self.s_dim])
+        action = tflearn.input_data(shape=[None, self.a_dim])
+        net = tflearn.fully_connected(inputs, 100, activation='relu')
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
-        t1 = tflearn.fully_connected(net, 64)
-        t2 = tflearn.fully_connected(action, 64)
+        t1 = tflearn.fully_connected(net, 50)
+        t2 = tflearn.fully_connected(action, 50)
 
         net = tflearn.activation(tf.matmul(net,t1.W) + tf.matmul(action, t2.W) + t2.b, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
 
         # linear layer connected to 1 output representing Q(s,a) 
         # Weights are init to Uniform[-3e-3, 3e-3]
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        out = tflearn.fully_connected(net, 1)
+        w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
+        out = tflearn.fully_connected(net, 1, weights_init=w_init)
         return inputs, action, out
 
     def train(self, inputs, action, predicted_q_value):
@@ -234,38 +216,29 @@ class CriticNetwork(object):
 # ===========================
 def build_summaries(): 
     episode_reward = tf.Variable(0.)
-    tf.summary.scalar('Reward', episode_reward)
+    tf.scalar_summary("Reward", episode_reward)
     episode_ave_max_q = tf.Variable(0.)
-    tf.summary.scalar('Qmax Value', episode_ave_max_q)
-
-    summary_vars = [episode_reward, episode_ave_max_q]
-    summary_ops = tf.summary.merge_all()
+    tf.scalar_summary("Qmax Value", episode_ave_max_q)
+    eval_acc_reward = tf.Variable(0.)
+    tf.scalar_summary("eval_acc_reward", eval_acc_reward)
+    # Add histograms for trainable variables.
+    for var in tf.trainable_variables():
+        tf.histogram_summary(var.op.name, var)
+    summary_vars = [episode_reward, episode_ave_max_q, eval_acc_reward]
+    summary_ops = tf.merge_all_summaries()
 
     return summary_ops, summary_vars
 
 # ===========================
 #   Agent Training
 # ===========================
-def train(sess, env, actor, critic, global_step):
+def train(sess, env, actor, critic):
 
     # Set up summary Ops
     summary_ops, summary_vars = build_summaries()
 
-    sess.run(tf.global_variables_initializer())
-
-    # load model if have
-    saver = tf.train.Saver()
-    checkpoint = tf.train.get_checkpoint_state("./results")
-    
-    if checkpoint and checkpoint.model_checkpoint_path:
-        saver.restore(sess, checkpoint.model_checkpoint_path)
-        print ("Successfully loaded:", checkpoint.model_checkpoint_path)
-        print("global step: ", global_step.eval())
-
-    else:
-        print ("Could not find old network weights")
-
-    writer = tf.summary.FileWriter(SUMMARY_DIR, sess.graph)
+    sess.run(tf.initialize_all_variables())
+    writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
 
     # Initialize target network weights
     actor.update_target_network()
@@ -273,68 +246,42 @@ def train(sess, env, actor, critic, global_step):
 
     # Initialize replay memory
     replay_buffer = ReplayBuffer(BUFFER_SIZE, RANDOM_SEED)
-
-    i = global_step.eval()
-
-
     eval_acc_reward = 0
     eval_acc_reward_summary = -100
+    for i in xrange(MAX_EPISODES):
 
-    tic = time.time()
-
-    while True:
-        i += 1
         s = env.reset()
-        # plt.imshow(s, interpolation='none')
-        # plt.show()
-        s = prepro(s)
+
         ep_reward = 0
         ep_ave_max_q = 0
 
-        if i % SAVE_STEP == 0 : # save check point every 1000 episode
-            sess.run(global_step.assign(i))
-            save_path = saver.save(sess, "./results/model.ckpt" , global_step = global_step)
-            print("Model saved in file: %s" % save_path)
-            print("Successfully saved global step: ", global_step.eval())
 
 
         for j in xrange(MAX_EP_STEPS):
-            a = actor.predict(np.reshape(s, np.hstack((1, actor.s_dim))))
-            a = a[0]
-            action_prob = a
 
-            # action_score = a[0]
-            # # print action_score
-            # # print np.max(action_score)
 
-            # action_prob = np.exp(action_score - np.max(action_score))
-            # # probs = np.exp(action_score)
-            # # print action_prob
+            # print(s.shape)
 
-            # action_prob /= np.sum(action_prob)
+            # Added exploration noise
 
-            np.random.seed()
-
-            action = np.random.choice(actor.a_dim, 1, p = action_prob)
-            action = action[0]
-            if np.random.rand() < EPS:
-                action = np.random.randint(4)
-            # print'actionprob:', action_prob
-
-            # print(action)
-            # print(a)
-
+            a = actor.predict(np.reshape(s, (1, -1)))
+            action_score = a[0]
+            probs = np.exp(action_score - np.max(action_score))
+            # probs = np.exp(action_score)
+            probs /= np.sum(probs)
+            # np.random.seed()
+            # epsilon = 0.5 # eps greedy
+            # dice = np.random.uniform() # roll the dice!
+            # if dice < epsilon:
+            # action = np.argmax(probs)
+            # else:
+            action = np.random.choice(4, 1, p = probs)
+            # print action
             s2, r, terminal, info = env.step(action)
-            # print r, info
-            # plt.imshow(s2, interpolation='none')
-            # plt.show()
 
-            s2 = prepro(s2)
-
-            # print(np.reshape(s, (actor.s_dim,)).shape)
-            replay_buffer.add(np.reshape(s, (actor.s_dim)), np.reshape(a, (actor.a_dim)), r, \
-                terminal, np.reshape(s2, (actor.s_dim)))
-
+            replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, (actor.a_dim,)), r, \
+                terminal, np.reshape(s2, (actor.s_dim,)))
+            
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
             if replay_buffer.size() > MINIBATCH_SIZE:     
@@ -356,25 +303,27 @@ def train(sess, env, actor, critic, global_step):
             
                 ep_ave_max_q += np.amax(predicted_q_value)
 
+
+                    
                 # Update the actor policy using the sampled gradient
                 a_outs = actor.predict(s_batch)                
                 grads = critic.action_gradients(s_batch, a_outs)
                 actor.train(s_batch, grads[0])
 
-            # Update target networks every 1000 iter
-            # if i%TARGET_UPDATE_STEP == 0:
+                # Update target networks
                 actor.update_target_network()
                 critic.update_target_network()
 
             s = s2
             ep_reward += r
             eval_acc_reward += r
-
             if terminal:
                 # print j
                 summary_str = sess.run(summary_ops, feed_dict={
                     summary_vars[0]: ep_reward,
                     summary_vars[1]: ep_ave_max_q / float(j+1),
+                    summary_vars[2]: eval_acc_reward_summary
+
                 })
                 writer.add_summary(summary_str, i)
                 writer.flush()
@@ -388,45 +337,29 @@ def train(sess, env, actor, critic, global_step):
 
                 break
 
-
-def prepro(state):
-    """ prepro state to 3D tensor   """
-    # print('before: ', state.shape)
-    state = state.reshape(state.shape[0], state.shape[1], 1)
-    # print('after: ', state.shape)
-    # plt.imshow(state, interpolation='none')
-    # plt.show()
-    # state = state.astype(np.float).ravel()
-    return state
-
-
 def main(_):
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
+    with tf.Session() as sess:
+        
+        env = sim_env(10, 0.1)
+        np.random.seed(RANDOM_SEED)
+        tf.set_random_seed(RANDOM_SEED)
 
-    with tf.Session(config=config) as sess:
- 
-        global_step = tf.Variable(0, name='global_step', trainable=False)
-
-        env = sim_env(MAP_SIZE, PROBABILITY) # creat 
-        # np.random.seed(RANDOM_SEED)
-        # tf.set_random_seed(RANDOM_SEED)
 
         # state_dim = np.prod(env.observation_space.shape)
-        state_dim = [env.state_dim[0], env.state_dim[1], 1]
+        state_dim = env.state_dim
         print('state_dim:',state_dim)
         action_dim = env.action_dim
         print('action_dim:',action_dim)
+        action_bound = 1
 
-
-        actor = ActorNetwork(sess, state_dim, action_dim, \
+        actor = ActorNetwork(sess, state_dim, action_dim, action_bound, \
             ACTOR_LEARNING_RATE, TAU)
 
         critic = CriticNetwork(sess, state_dim, action_dim, \
             CRITIC_LEARNING_RATE, TAU, actor.get_num_trainable_vars())
 
 
-        train(sess, env, actor, critic, global_step)
+        train(sess, env, actor, critic)
 
 if __name__ == '__main__':
     tf.app.run()

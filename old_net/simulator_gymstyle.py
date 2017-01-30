@@ -7,12 +7,12 @@ class sim_env(object):
     def __init__(self, dim, propobility):
         self.dim = dim
         self.propobility = propobility
-        self.WALL_VALUE = 50
+        self.WALL_VALUE = 10
         self.CAR_VALUE = 100
         self.GOAL_VALUE = 200
         self.max_step = 20
 
-        self.state_dim = [(self.dim + 2) , (self.dim + 2)]
+        self.state_dim = (self.dim + 2) * (self.dim + 2)
         self.action_dim = 4
 
     def reset(self):
@@ -37,7 +37,7 @@ class sim_env(object):
 
       # random goal
       if FIX_STARTEND:
-          self.goal = self.dim-1, self.dim-1
+          self.goal = self.dim-5, self.dim-5
       else:
           self.goal = np.random.random_integers(0, self.dim-1, 2)
           self.goal = self.goal[0], self.goal[1]
@@ -46,7 +46,6 @@ class sim_env(object):
 
       env_distance = 1 # env use car as center, sensing distance
       map_env = np.pad(self.map_matrix, env_distance,'constant', constant_values=self.WALL_VALUE)
-      map_env[self.car_location[0] + 1, self.car_location[1] + 1] = self.CAR_VALUE
       return map_env
 
 
@@ -125,7 +124,7 @@ class sim_env(object):
             if self.current_step >= self.max_step:
                 feedback = -1
                 self.done = True
-                status = 'max_step'
+                # print "self.done"
 
         elif map_env[env_location] == self.GOAL_VALUE:
             # print "congratulations! You arrive destination"
