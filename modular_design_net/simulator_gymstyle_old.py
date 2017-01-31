@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-FIX_STARTEND = True
+FIX_STARTEND = False
 class sim_env(object):
     def __init__(self, dim, propobility):
         self.dim = dim
@@ -10,7 +10,7 @@ class sim_env(object):
         self.WALL_VALUE = 50
         self.CAR_VALUE = 100
         self.GOAL_VALUE = 200
-        self.max_step = 20
+        self.max_step = 2000
 
         self.state_dim = [(self.dim + 2) , (self.dim + 2)]
         self.action_dim = 4

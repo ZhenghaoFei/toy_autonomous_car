@@ -13,7 +13,7 @@ from simulator_gymstyle_old import *
 # ==========================
 
 # Max episode length    
-MAX_EP_STEPS = 1000
+MAX_EP_STEPS = 40
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 1e-4
 # Base learning rate for the Critic Network
@@ -26,12 +26,13 @@ TARGET_UPDATE_STEP = 100
 
 MINIBATCH_SIZE = 512
 SAVE_STEP = 10000
-EPS = 0.0
+EPS_MIN = 0.0
+EPS_DECAY_RATE = 0.999
 # ===========================
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 5
+MAP_SIZE  = 7
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
 SUMMARY_DIR = './results/'
@@ -92,9 +93,13 @@ class ActorNetwork(object):
 
     def create_actor_network(self): 
         inputs = tflearn.input_data(shape=self.s_dim)
-        # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
         # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
+
+        net = tflearn.layers.normalization.batch_normalization(net)
         net = tflearn.fully_connected(inputs, 64, activation='relu')
+        net = tflearn.layers.normalization.batch_normalization(net)
+        net = tflearn.fully_connected(inputs, 32, activation='relu')
         net = tflearn.layers.normalization.batch_normalization(net)
 
 
@@ -181,8 +186,9 @@ class CriticNetwork(object):
 
     def create_critic_network(self):
         inputs = tflearn.input_data(shape=self.s_dim)
+
         action = tflearn.input_data(shape=[None,self.a_dim])
-        # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
         # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
         net = tflearn.fully_connected(inputs, 64, activation='relu')
         net = tflearn.layers.normalization.batch_normalization(net)
@@ -233,12 +239,12 @@ class CriticNetwork(object):
 #   Tensorflow Summary Ops
 # ===========================
 def build_summaries(): 
-    episode_reward = tf.Variable(0.)
-    tf.summary.scalar('Reward', episode_reward)
+    success_rate = tf.Variable(0.)
+    tf.summary.scalar('Success Rate', success_rate)
     episode_ave_max_q = tf.Variable(0.)
     tf.summary.scalar('Qmax Value', episode_ave_max_q)
 
-    summary_vars = [episode_reward, episode_ave_max_q]
+    summary_vars = [success_rate, episode_ave_max_q]
     summary_ops = tf.summary.merge_all()
 
     return summary_ops, summary_vars
@@ -281,9 +287,11 @@ def train(sess, env, actor, critic, global_step):
     eval_acc_reward_summary = -100
 
     tic = time.time()
-
+    eps = 1
     while True:
         i += 1
+        eps *= EPS_DECAY_RATE
+        eps = max(eps, EPS_MIN)
         s = env.reset()
         # plt.imshow(s, interpolation='none')
         # plt.show()
@@ -303,22 +311,18 @@ def train(sess, env, actor, critic, global_step):
             a = a[0]
             action_prob = a
 
-            # action_score = a[0]
-            # # print action_score
-            # # print np.max(action_score)
-
-            # action_prob = np.exp(action_score - np.max(action_score))
-            # # probs = np.exp(action_score)
-            # # print action_prob
-
+            # # should be use less
+            # action_prob = np.exp(action_prob - np.max(action_prob))
             # action_prob /= np.sum(action_prob)
+            # # should be use less
 
             np.random.seed()
 
             action = np.random.choice(actor.a_dim, 1, p = action_prob)
             action = action[0]
-            if np.random.rand() < EPS:
+            if np.random.rand() < eps:
                 action = np.random.randint(4)
+                # print('eps')
             # print'actionprob:', action_prob
 
             # print(action)
@@ -371,18 +375,23 @@ def train(sess, env, actor, critic, global_step):
             eval_acc_reward += r
 
             if terminal:
-                # print j
-                summary_str = sess.run(summary_ops, feed_dict={
-                    summary_vars[0]: ep_reward,
-                    summary_vars[1]: ep_ave_max_q / float(j+1),
-                })
-                writer.add_summary(summary_str, i)
-                writer.flush()
-                # print '| Reward: %.2i' % int(ep_reward), " | Episode", i, \
-                #     '| Qmax: %.4f' % (ep_ave_max_q / float(j+1))
+
+                time_gap = time.time() - tic
 
                 if i%EVAL_EPISODES == 0:
-                    print(' 100 round reward: ', eval_acc_reward)
+                    # summary
+                    summary_str = sess.run(summary_ops, feed_dict={
+                        summary_vars[0]: (eval_acc_reward+100)/2,
+                        summary_vars[1]: ep_ave_max_q / float(j+1),
+                    })
+                    writer.add_summary(summary_str, i)
+                    writer.flush()
+
+                    print ('| Success: %i %%' % ((eval_acc_reward+100)/2), "| Episode", i, \
+                        '| Qmax: %.4f' % (ep_ave_max_q / float(j+1)), ' | Time: %.2f' %(time_gap), ' | Eps: %.2f' %(eps))
+                    tic = time.time()
+
+                    # print(' 100 round reward: ', eval_acc_reward)
                     eval_acc_reward_summary = eval_acc_reward
                     eval_acc_reward = 0
 

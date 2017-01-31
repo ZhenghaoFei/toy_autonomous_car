@@ -6,7 +6,7 @@ from mazegen import make_maze
 FIX_STARTEND = True
 
 class sim_env(object):
-    def __init__(self, dim):
+    def __init__(self, dim, propobility):
         self.dim = dim
         self.WALL_VALUE = 10
         self.CAR_VALUE = 100
