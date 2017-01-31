@@ -32,7 +32,7 @@ EPS_DECAY_RATE = 0.999
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 7
+MAP_SIZE  = 5
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
 SUMMARY_DIR = './results/'
@@ -284,8 +284,6 @@ def train(sess, env, actor, critic, global_step):
 
 
     eval_acc_reward = 0
-    eval_acc_reward_summary = -100
-
     tic = time.time()
     eps = 1
     while True:
@@ -296,7 +294,6 @@ def train(sess, env, actor, critic, global_step):
         # plt.imshow(s, interpolation='none')
         # plt.show()
         s = prepro(s)
-        ep_reward = 0
         ep_ave_max_q = 0
 
         if i % SAVE_STEP == 0 : # save check point every 1000 episode
@@ -371,7 +368,6 @@ def train(sess, env, actor, critic, global_step):
                 critic.update_target_network()
 
             s = s2
-            ep_reward += r
             eval_acc_reward += r
 
             if terminal:
@@ -381,18 +377,17 @@ def train(sess, env, actor, critic, global_step):
                 if i%EVAL_EPISODES == 0:
                     # summary
                     summary_str = sess.run(summary_ops, feed_dict={
-                        summary_vars[0]: (eval_acc_reward+100)/2,
+                        summary_vars[0]: (eval_acc_reward+EVAL_EPISODES)/2,
                         summary_vars[1]: ep_ave_max_q / float(j+1),
                     })
                     writer.add_summary(summary_str, i)
                     writer.flush()
 
-                    print ('| Success: %i %%' % ((eval_acc_reward+100)/2), "| Episode", i, \
+                    print ('| Success: %i %%' % ((eval_acc_reward+EVAL_EPISODES)/2), "| Episode", i, \
                         '| Qmax: %.4f' % (ep_ave_max_q / float(j+1)), ' | Time: %.2f' %(time_gap), ' | Eps: %.2f' %(eps))
                     tic = time.time()
 
                     # print(' 100 round reward: ', eval_acc_reward)
-                    eval_acc_reward_summary = eval_acc_reward
                     eval_acc_reward = 0
 
                 break
