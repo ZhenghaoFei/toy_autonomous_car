@@ -10,7 +10,7 @@ class sim_env(object):
         self.WALL_VALUE = 50
         self.CAR_VALUE = 100
         self.GOAL_VALUE = 200
-        self.max_step = 2000
+        self.max_step = 40
 
         self.state_dim = [(self.dim + 2) , (self.dim + 2)]
         self.action_dim = 4

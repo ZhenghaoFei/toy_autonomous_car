@@ -13,7 +13,7 @@ from simulator_gymstyle_old import *
 # ==========================
 
 # Max episode length    
-MAX_EP_STEPS = 40
+MAX_EP_STEPS = 100
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 1e-4
 # Base learning rate for the Critic Network
@@ -372,10 +372,10 @@ def train(sess, env, actor, critic, global_step):
 
             if terminal:
 
-                time_gap = time.time() - tic
 
                 if i%EVAL_EPISODES == 0:
                     # summary
+                    time_gap = time.time() - tic
                     summary_str = sess.run(summary_ops, feed_dict={
                         summary_vars[0]: (eval_acc_reward+EVAL_EPISODES)/2,
                         summary_vars[1]: ep_ave_max_q / float(j+1),
