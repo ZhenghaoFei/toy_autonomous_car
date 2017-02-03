@@ -208,6 +208,9 @@ class CriticNetwork(object):
         return inputs, action, out
 
     def train(self, inputs, action, predicted_q_value):
+        print(predicted_q_value.shape)
+        print(self.predicted_q_value)
+
         return self.sess.run([self.out, self.optimize], feed_dict={
             self.inputs: inputs,
             self.action: action,
@@ -351,6 +354,7 @@ def train(sess, env, actor, critic, global_step):
                         y_i.append(r_batch[k])
                     else:
                         y_i.append(r_batch[k] + GAMMA * target_q[k])
+            
 
                 # Update the critic given the targets
                 predicted_q_value, _ = critic.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
