@@ -1,0 +1,17 @@
+gcloud beta ml jobs submit training ${JOB_NAME} \
+  --package-path=modular \
+  --module-name=modular.train \
+  --staging-bucket="${TRAIN_BUCKET}" \
+  --region=us-central1 \
+  --train_dir="${TRAIN_PATH}/train" \
+  --packages=./tflearn0.2.2.tar.gz
+  -- \
+
+gcloud beta ml jobs submit training ${JOB_NAME} \
+  --package-path=modular \
+  --module-name=modular.train \
+  --packages=./tflearn0.2.2.tar.gz \
+  --staging-bucket="${TRAIN_BUCKET}" \
+  --region=us-central1 \
+  -- \
+  --train_dir="${TRAIN_PATH}/train" \

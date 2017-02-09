@@ -17,7 +17,7 @@ MAX_EP_STEPS = 100
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 1e-4
 # Base learning rate for the Critic Network
-CRITIC_LEARNING_RATE = 1e-4
+CRITIC_LEARNING_RATE = 1e-3
 # Discount factor 
 GAMMA = 0.9
 # Soft target update param
@@ -25,9 +25,9 @@ TAU = 0.001
 TARGET_UPDATE_STEP = 100
 
 MINIBATCH_SIZE = 512
-SAVE_STEP = 10000
+SAVE_STEP = 50000
 EPS_MIN = 0.0
-EPS_DECAY_RATE = 0.999
+EPS_DECAY_RATE = 0
 # ===========================
 #   Utility Parameters
 # ===========================
@@ -92,31 +92,17 @@ class ActorNetwork(object):
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 
     def create_actor_network(self): 
-        inputs = tflearn.input_data(shape=self.s_dim)
-        net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
-        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
+        inputs = tflearn.input_data(shape=[None, self.s_dim[0], self.s_dim[1], 1])
+        net = tflearn.conv_2d(inputs, 16, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv1')
 
-        net = tflearn.layers.normalization.batch_normalization(net)
-        net = tflearn.fully_connected(inputs, 64, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
-        net = tflearn.fully_connected(inputs, 32, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
+        net = tflearn.fully_connected(net, 128, activation='relu')
+        net = tflearn.fully_connected(net, 64, activation='relu')
 
-
-        # net = tflearn.fully_connected(net, 300, activation='relu')
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax', weights_init=w_init)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax')
-
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='relu')
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        out = tflearn.fully_connected(net, self.a_dim, activation='softmax', weights_init=w_init)
-        # out = tflearn.fully_connected(net, self.a_dim, activation='softmax')
-
-        # out = tflearn.activations.softmax (net)
-        # scaled_out = tf.mul(out,1) # Scale output to -action_bound to action_bound
+        out = tflearn.fully_connected(net, self.a_dim, activation='tanh', weights_init=w_init)
 
         return inputs, out
 
@@ -185,32 +171,28 @@ class CriticNetwork(object):
         self.action_grads = tf.gradients(self.out, self.action)
 
     def create_critic_network(self):
-        inputs = tflearn.input_data(shape=self.s_dim)
+        inputs = tflearn.input_data(shape=[None, self.s_dim[0], self.s_dim[1], 1])
+        action = tflearn.input_data(shape=[None, self.a_dim])
+        net = tflearn.conv_2d(inputs, 16, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv1')
 
-        action = tflearn.input_data(shape=[None,self.a_dim])
-        net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
-        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
-        net = tflearn.fully_connected(inputs, 64, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
+        net = tflearn.fully_connected(net, 128, activation='relu')
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
         t1 = tflearn.fully_connected(net, 64)
         t2 = tflearn.fully_connected(action, 64)
 
-        net = tflearn.activation(tf.matmul(net,t1.W) + tf.matmul(action, t2.W) + t2.b, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
+        net = tflearn.activation(tf.matmul(net,t1.W) + tf.matmul(action, t2.W) + t1.b + t2.b, activation='relu')
 
         # linear layer connected to 1 output representing Q(s,a) 
         # Weights are init to Uniform[-3e-3, 3e-3]
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        out = tflearn.fully_connected(net, 1)
+        w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
+        out = tflearn.fully_connected(net, 1, weights_init=w_init)
         return inputs, action, out
 
     def train(self, inputs, action, predicted_q_value):
-        print(predicted_q_value.shape)
-        print(self.predicted_q_value)
-
         return self.sess.run([self.out, self.optimize], feed_dict={
             self.inputs: inputs,
             self.action: action,
@@ -256,7 +238,6 @@ def build_summaries():
 #   Agent Training
 # ===========================
 def train(sess, env, actor, critic, global_step):
-
     # Set up summary Ops
     summary_ops, summary_vars = build_summaries()
 
@@ -289,15 +270,13 @@ def train(sess, env, actor, critic, global_step):
     eval_acc_reward = 0
     tic = time.time()
     eps = 1
+
     while True:
         i += 1
+        s = env.reset()
+        ep_ave_max_q = 0
         eps *= EPS_DECAY_RATE
         eps = max(eps, EPS_MIN)
-        s = env.reset()
-        # plt.imshow(s, interpolation='none')
-        # plt.show()
-        s = prepro(s)
-        ep_ave_max_q = 0
 
         if i % SAVE_STEP == 0 : # save check point every 1000 episode
             sess.run(global_step.assign(i))
@@ -307,38 +286,30 @@ def train(sess, env, actor, critic, global_step):
 
 
         for j in xrange(MAX_EP_STEPS):
+
+            # print(s.shape)
+
+            # Added exploration noise
+
             a = actor.predict(np.reshape(s, np.hstack((1, actor.s_dim))))
-            a = a[0]
-            action_prob = a
-
-            # # should be use less
-            # action_prob = np.exp(action_prob - np.max(action_prob))
-            # action_prob /= np.sum(action_prob)
-            # # should be use less
-
-            np.random.seed()
-
-            action = np.random.choice(actor.a_dim, 1, p = action_prob)
-            action = action[0]
-            if np.random.rand() < eps:
-                action = np.random.randint(4)
-                # print('eps')
-            # print'actionprob:', action_prob
-
-            # print(action)
-            # print(a)
-
+            action_score = a[0]
+            probs = np.exp(action_score - np.max(action_score))
+            # probs = np.exp(action_score)
+            probs /= np.sum(probs)
+            # np.random.seed()
+            # epsilon = 0.5 # eps greedy
+            # dice = np.random.uniform() # roll the dice!
+            # if dice < epsilon:
+            # action = np.argmax(probs)
+            # else:
+            action = np.random.choice(4, 1, p = probs)
+            # print action
             s2, r, terminal, info = env.step(action)
-            # print r, info
-            # plt.imshow(s2, interpolation='none')
-            # plt.show()
-
-            s2 = prepro(s2)
-
-            # print(np.reshape(s, (actor.s_dim,)).shape)
+            plt.imshow(s2, interpolation='none')
+            plt.show()
             replay_buffer.add(np.reshape(s, (actor.s_dim)), np.reshape(a, (actor.a_dim)), r, \
                 terminal, np.reshape(s2, (actor.s_dim)))
-
+            
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
             if replay_buffer.size() > MINIBATCH_SIZE:     
@@ -354,20 +325,21 @@ def train(sess, env, actor, critic, global_step):
                         y_i.append(r_batch[k])
                     else:
                         y_i.append(r_batch[k] + GAMMA * target_q[k])
-            
 
                 # Update the critic given the targets
+                # print(s_batch.shape)
                 predicted_q_value, _ = critic.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
             
                 ep_ave_max_q += np.amax(predicted_q_value)
 
+
+                    
                 # Update the actor policy using the sampled gradient
                 a_outs = actor.predict(s_batch)                
                 grads = critic.action_gradients(s_batch, a_outs)
                 actor.train(s_batch, grads[0])
 
-            # Update target networks every 1000 iter
-            # if i%TARGET_UPDATE_STEP == 0:
+                # Update target networks
                 actor.update_target_network()
                 critic.update_target_network()
 
@@ -376,6 +348,8 @@ def train(sess, env, actor, critic, global_step):
 
             if terminal:
 
+                # print '| Reward: %.2i' % int(ep_reward), " | Episode", i, \
+                #     '| Qmax: %.4f' % (ep_ave_max_q / float(j+1))
 
                 if i%EVAL_EPISODES == 0:
                     # summary
@@ -395,7 +369,6 @@ def train(sess, env, actor, critic, global_step):
                     eval_acc_reward = 0
 
                 break
-
 
 def prepro(state):
     """ prepro state to 3D tensor   """
@@ -417,8 +390,8 @@ def main(_):
         global_step = tf.Variable(0, name='global_step', trainable=False)
 
         env = sim_env(MAP_SIZE, PROBABILITY) # creat 
-        # np.random.seed(RANDOM_SEED)
-        # tf.set_random_seed(RANDOM_SEED)
+        np.random.seed(RANDOM_SEED)
+        tf.set_random_seed(RANDOM_SEED)
 
         # state_dim = np.prod(env.observation_space.shape)
         state_dim = [env.state_dim[0], env.state_dim[1], 1]

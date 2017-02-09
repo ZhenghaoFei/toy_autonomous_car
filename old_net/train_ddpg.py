@@ -340,7 +340,7 @@ def train(sess, env, actor, critic):
 def main(_):
     with tf.Session() as sess:
         
-        env = sim_env(10, 0.1)
+        env = sim_env(5, 0.1)
         np.random.seed(RANDOM_SEED)
         tf.set_random_seed(RANDOM_SEED)
 

@@ -2,7 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import tflearn
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import time
 
 from replay_buffer import ReplayBuffer
@@ -16,28 +16,28 @@ from simulator_gymstyle_old import *
 MAX_EP_STEPS = 100
 
 # Base learning rate for the Qnet Network
-Q_LEARNING_RATE = 1e-4
+Q_LEARNING_RATE = 1e-3
 # Discount factor 
 GAMMA = 0.9
 # Soft target update param
 TAU = 0.001
 TARGET_UPDATE_STEP = 100
 
-MINIBATCH_SIZE = 512
+MINIBATCH_SIZE = 256
 SAVE_STEP = 10000
-EPS_MIN = 0.1
+EPS_MIN = 0.05
 EPS_DECAY_RATE = 0.9999
 # ===========================
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 5
+MAP_SIZE  = 8
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
 SUMMARY_DIR = './results_dqn/'
 RANDOM_SEED = 1234
 # Size of replay buffer
-BUFFER_SIZE = 10000
+BUFFER_SIZE = 100000
 EVAL_EPISODES = 100
 
 
@@ -58,12 +58,12 @@ class QNetwork(object):
         self.tau = tau
 
         # Create the Qnet network
-        self.inputs, self.out = self.create_Qnet_network()
+        self.inputs, self.out = self.create_Q_network()
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
-        self.target_inputs, self.target_out = self.create_Qnet_network()
+        self.target_inputs, self.target_out = self.create_Q_network()
         
         self.target_network_params = tf.trainable_variables()[(len(self.network_params)):]
 
@@ -74,27 +74,31 @@ class QNetwork(object):
                 for i in range(len(self.target_network_params))]
     
         # Network target (y_i)
-        self.observed_q_value = tf.placeholder(tf.float32, [None, 1])
+        self.observed_q_value = tf.placeholder(tf.float32, [None])
         self.action_taken = tf.placeholder(tf.float32, [None, self.a_dim])
         self.predicted_q_value = tf.reduce_sum(tf.mul(self.out, self.action_taken), reduction_indices = 1) 
 
         # Define loss and optimization Op
         self.Qnet_global_step = tf.Variable(0, name='Qnet_global_step', trainable=False)
 
-        self.loss = tflearn.mean_square(self.observed_q_value, self.predicted_q_value)
+        self.loss = tf.reduce_mean(tf.square(self.predicted_q_value - self.observed_q_value))
         self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss, global_step=self.Qnet_global_step)
 
 
-    def create_Qnet_network(self):
+    def create_Q_network(self):
         inputs = tflearn.input_data(shape=self.s_dim)
 
-        net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv1')
-        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
-        net = tflearn.fully_connected(inputs, 64, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
+        net = tflearn.conv_2d(inputs, 32, 3, activation='relu', name='conv1')
+        net = tflearn.layers.conv.max_pool_2d (net, 2, strides=None, padding='same', name='MaxPool2D1')
+        net = tflearn.conv_2d(inputs, 64, 2, activation='relu', name='conv2')
+        # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv3')
 
-        net = tflearn.fully_connected(net, 64, activation='relu')
-        net = tflearn.layers.normalization.batch_normalization(net)
+        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
+        net = tflearn.fully_connected(net, 256, activation='relu')
+        # net = tflearn.layers.normalization.batch_normalization(net)
+
+        # net = tflearn.fully_connected(net, 64, activation='relu')
+        # net = tflearn.layers.normalization.batch_normalization(net)
         # linear layer connected to 1 output representing Q(s,a) 
         # Weights are init to Uniform[-3e-3, 3e-3]
         # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
@@ -179,7 +183,7 @@ def train(sess, env, Qnet, global_step):
         s = env.reset()
         # plt.imshow(s, interpolation='none')
         # plt.show()
-        s = prepro(s)
+        # s = prepro(s)
         ep_ave_max_q = 0
 
         if i % SAVE_STEP == 0 : # save check point every 1000 episode
@@ -209,44 +213,42 @@ def train(sess, env, Qnet, global_step):
             # plt.imshow(s2, interpolation='none')
             # plt.show()
 
-            s2 = prepro(s2)
+            # s2 = prepro(s2)
 
             # print(np.reshape(s, (actor.s_dim,)).shape)
             action_vector = action_ecoder(action, Qnet.a_dim)
             replay_buffer.add(np.reshape(s, (Qnet.s_dim)), np.reshape(action_vector, (Qnet.a_dim)), r, \
                 terminal, np.reshape(s2, (Qnet.s_dim)))
 
-            # Keep adding experience to the memory until
-            # there are at least minibatch size samples
-            if replay_buffer.size() > MINIBATCH_SIZE:     
-                s_batch, a_batch, r_batch, t_batch, s2_batch = \
-                    replay_buffer.sample_batch(MINIBATCH_SIZE)
-
-                # Calculate targets
-                target_q = Qnet.predict_target(s2_batch)
-                y_i = []
-                for k in xrange(MINIBATCH_SIZE):
-                    if t_batch[k]:
-                        y_i.append(r_batch[k])
-                    else:
-                        y_i.append(r_batch[k] + GAMMA * np.max(target_q[k]))
-
-                # # Update the Qnet given the target
-                predicted_q_value, _ = Qnet.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
-            
-                ep_ave_max_q += np.amax(predicted_q_value)
-
-                # Update the actor policy using the sampled gradient
-
-            # Update target networks every 1000 iter
-            # if i%TARGET_UPDATE_STEP == 0:
-                Qnet.update_target_network()
-
             s = s2
             eval_acc_reward += r
 
             if terminal:
+                # Keep adding experience to the memory until
+                # there are at least minibatch size samples
+                if replay_buffer.size() > MINIBATCH_SIZE:     
+                    s_batch, a_batch, r_batch, t_batch, s2_batch = \
+                        replay_buffer.sample_batch(MINIBATCH_SIZE)
 
+                    # Calculate targets
+                    target_q = Qnet.predict_target(s2_batch)
+                    y_i = []
+                    for k in xrange(MINIBATCH_SIZE):
+                        if t_batch[k]:
+                            y_i.append(r_batch[k])
+                        else:
+                            y_i.append(r_batch[k] + GAMMA * target_q[k, np.argmax(a_batch[k])])
+
+                    # # Update the Qnet given the target
+                    predicted_q_value, _ = Qnet.train(s_batch, a_batch, y_i)
+                
+                    ep_ave_max_q += np.amax(predicted_q_value)
+
+                    # Update the actor policy using the sampled gradient
+
+                # Update target networks every 1000 iter
+                # if i%TARGET_UPDATE_STEP == 0:
+                    Qnet.update_target_network()
 
                 if i%EVAL_EPISODES == 0:
                     # summary

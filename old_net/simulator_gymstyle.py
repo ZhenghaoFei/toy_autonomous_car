@@ -37,7 +37,7 @@ class sim_env(object):
 
       # random goal
       if FIX_STARTEND:
-          self.goal = self.dim-5, self.dim-5
+          self.goal = self.dim-1, self.dim-1
       else:
           self.goal = np.random.random_integers(0, self.dim-1, 2)
           self.goal = self.goal[0], self.goal[1]
