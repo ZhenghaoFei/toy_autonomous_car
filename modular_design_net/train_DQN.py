@@ -70,13 +70,13 @@ class QNetwork(object):
 
         # Op for periodically updating target network with online network weights with regularization
         self.update_target_network_params = \
-            [self.target_network_params[i].assign(tf.mul(self.network_params[i], self.tau) + tf.mul(self.target_network_params[i], 1. -self.tau))
+            [self.target_network_params[i].assign(tf.multiply(self.network_params[i], self.tau) + tf.multiply(self.target_network_params[i], 1. -self.tau))
                 for i in range(len(self.target_network_params))]
     
         # Network target (y_i)
         self.observed_q_value = tf.placeholder(tf.float32, [None])
         self.action_taken = tf.placeholder(tf.float32, [None, self.a_dim])
-        self.predicted_q_value = tf.reduce_sum(tf.mul(self.out, self.action_taken), reduction_indices = 1) 
+        self.predicted_q_value = tf.reduce_sum(tf.multiply(self.out, self.action_taken), reduction_indices = 1) 
 
         # Define loss and optimization Op
         self.Qnet_global_step = tf.Variable(0, name='Qnet_global_step', trainable=False)
