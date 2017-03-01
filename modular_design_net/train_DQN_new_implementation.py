@@ -1,7 +1,11 @@
+# This is the same as train_DQN.py, only not use tflearn,
+# switch to layers in tensorflow, should have some results as old version
+# test results: haven't test
 
 import tensorflow as tf
-import numpy as np
+import tensorflow.contrib.layers as layers
 import tflearn
+import numpy as np
 # import matplotlib.pyplot as plt
 import time
 
@@ -34,7 +38,7 @@ EPS_DECAY_RATE = 0.9999
 MAP_SIZE  = 8
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
-SUMMARY_DIR = './results_dqn_vin/'
+SUMMARY_DIR = './results_dqn_newimp/'
 RANDOM_SEED = 1234
 # Size of replay buffer
 BUFFER_SIZE = 100000
@@ -86,46 +90,21 @@ class QNetwork(object):
 
 
     def create_Q_network(self):
-        X = tflearn.input_data(shape=self.s_dim)
-        k    = 10    # Number of value iterations performed
-        ch_h = 150 # Channels in initial hidden layer 150
-        ch_q = self.a_dim  # Channels in q layer (~actions) 10
-        bias  = tf.Variable(np.random.randn(1, 1, 1, ch_h)    * 0.01, dtype=tf.float32)
-        # weights from inputs to q layer (~reward in Bellman equation)
-        w0    = tf.Variable(np.random.randn(3, 3, 1, ch_h) * 0.01, dtype=tf.float32)
-        w1    = tf.Variable(np.random.randn(1, 1, ch_h, 1)    * 0.01, dtype=tf.float32)
-        w     = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
-        # feedback weights from v layer into q layer (~transition probabilities in Bellman equation)
-        w_fb  = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
+        # inputs = tf.placeholder(tf.float32, shape = ([None] + list(self.s_dim)))
+        # net = layers.convolution2d(inputs, num_outputs=32, kernel_size=3, stride=1, padding = 'SAME', activation_fn=tf.nn.relu)
+        # net = layers.max_pool2d(net, kernel_size=[2, 2], padding = 'SAME')
+        # net = layers.convolution2d(net, num_outputs=64, kernel_size=2, stride=1, padding = 'SAME', activation_fn=tf.nn.relu)
+        # net = layers.flatten(net)
+        # net = layers.fully_connected(net, num_outputs=256, activation_fn=tf.nn.relu)
+        # out = layers.fully_connected(net, num_outputs=self.a_dim, activation_fn=None)
 
-        # output layers
-        w_xq = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
-        w_o   = tf.Variable(np.random.randn(ch_q,  self.a_dim ) * 0.01, dtype=tf.float32)
-
-        # initial conv layer over image+reward prior
-
-        h = tf.nn.conv2d(X, w0, name="h0", strides=(1, 1, 1, 1), padding='SAME') + bias
-
-        r = tf.nn.conv2d(h, w1, name="r", strides=(1, 1, 1, 1), padding='SAME')
-        q = tf.nn.conv2d(r, w, name="q" , strides=(1, 1, 1, 1), padding='SAME')
-        v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
-
-        for i in range(0, k-1):
-            rv = tf.concat([r, v], 3)
-            wwfb = tf.concat([w, w_fb], 2)
-
-            q = tf.nn.conv2d(rv, wwfb, name="q", strides=(1, 1, 1, 1), padding='SAME')
-            v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
-        # do one last convolution
-        q = tf.nn.conv2d(tf.concat([r, v], 3),
-                            tf.concat([w, w_fb], 2), name="q", strides=(1, 1, 1, 1), padding='SAME')
-        xq = tf.concat([X, q], 3)
-        xq_flat = tf.contrib.layers.flatten(xq)
-        q = tf.contrib.layers.fully_connected(xq_flat, 128, activation_fn=tf.nn.relu)
-        out = tf.contrib.layers.fully_connected(q, self.a_dim, activation_fn=None)
-
-        # out = tflearn.fully_connected(net, self.a_dim)
-        return X, out
+        inputs = tflearn.input_data(shape=self.s_dim)
+        net = tflearn.conv_2d(inputs, 32, 3, activation='relu', name='conv1')
+        net = tflearn.layers.conv.max_pool_2d (net, 2, strides=None, padding='same', name='MaxPool2D1')
+        net = tflearn.conv_2d(inputs, 64, 2, activation='relu', name='conv2')
+        net = tflearn.fully_connected(net, 256, activation='relu')
+        out = tflearn.fully_connected(net, self.a_dim)
+        return inputs, out
 
     def train(self, inputs, action, observed_q_value):
 

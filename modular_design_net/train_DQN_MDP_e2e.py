@@ -1,7 +1,10 @@
+# In this version of DQN, we explicity add MDP module 
+# and do internal bellman equation with k step based on it
+# test results: haven't test
 
 import tensorflow as tf
+import tensorflow.contrib.layers as layers
 import numpy as np
-import tflearn
 # import matplotlib.pyplot as plt
 import time
 
@@ -34,13 +37,18 @@ EPS_DECAY_RATE = 0.9999
 MAP_SIZE  = 8
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
-SUMMARY_DIR = './results_dqn_vin/'
+SUMMARY_DIR = './results_dqn_newimp/'
 RANDOM_SEED = 1234
 # Size of replay buffer
 BUFFER_SIZE = 100000
 EVAL_EPISODES = 100
 
-
+# ===========================
+#   MDP DNN
+# ===========================
+def conv2d_relu(X, W, bias=0):
+    net = tf.nn.conv2d(X, W, strides=(1, 1, 1, 1), padding='SAME') + bias
+    return tf.nn.relu(net)
 # ===========================
 #   Q DNN
 # ===========================
@@ -84,48 +92,79 @@ class QNetwork(object):
         self.loss = tf.reduce_mean(tf.square(self.predicted_q_value - self.observed_q_value))
         self.optimize = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss, global_step=self.Qnet_global_step)
 
+    # def create_Q_MDP_network():
+    #     state = tf.placeholder(tf.float32, shape = ([None] + list(self.s_dim)))
+    #     r, next_s = create_MDP_network()
+
+    # def MDP_network(self, w_MDP):
+
+
+    def Q_network(self, input):
+        net = conv2d_relu(input, self.w_Q1, bias=self.bias_Q)
+        net = layers.max_pool2d(net, kernel_size=[2, 2], padding = 'SAME')
+        net = conv2d_relu(net, self.w_Q2)
+        net = layers.flatten(net)
+        net = layers.fully_connected(net, num_outputs=256, activation_fn=tf.nn.relu)
+        out = layers.fully_connected(net, num_outputs=self.a_dim, activation_fn=None)
+        return out
+
 
     def create_Q_network(self):
-        X = tflearn.input_data(shape=self.s_dim)
-        k    = 10    # Number of value iterations performed
-        ch_h = 150 # Channels in initial hidden layer 150
-        ch_q = self.a_dim  # Channels in q layer (~actions) 10
-        bias  = tf.Variable(np.random.randn(1, 1, 1, ch_h)    * 0.01, dtype=tf.float32)
-        # weights from inputs to q layer (~reward in Bellman equation)
-        w0    = tf.Variable(np.random.randn(3, 3, 1, ch_h) * 0.01, dtype=tf.float32)
-        w1    = tf.Variable(np.random.randn(1, 1, ch_h, 1)    * 0.01, dtype=tf.float32)
-        w     = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
-        # feedback weights from v layer into q layer (~transition probabilities in Bellman equation)
-        w_fb  = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
+        state = tf.placeholder(tf.float32, shape = ([None] + list(self.s_dim)))
 
-        # output layers
-        w_xq = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
-        w_o   = tf.Variable(np.random.randn(ch_q,  self.a_dim ) * 0.01, dtype=tf.float32)
+        # weights for MDP module
+        m_ch = 150
+        self.bias_MDP  = tf.Variable(np.random.randn(1, 1, 1, m_ch)    * 0.01, dtype=tf.float32)
+        self.w_MDP_h = tf.Variable(np.random.randn(3, 3, 1, m_ch) * 0.01, dtype=tf.float32)
+        self.w_MDP_snext_a = tf.Variable(np.random.randn(1, 1, m_ch, self.a_dim)    * 0.01, dtype=tf.float32)
+        # weights for Q network
+        q_ch1 = 32
+        q_ch2 = 64
+        self.bias_Q  = tf.Variable(np.random.randn(1, 1, 1, q_ch1)    * 0.01, dtype=tf.float32)
+        self.w_Q1  = tf.Variable(np.random.randn(3, 3, 1, q_ch1)    * 0.01, dtype=tf.float32)
+        self.w_Q2  = tf.Variable(np.random.randn(3, 3, q_ch1, q_ch2)    * 0.01, dtype=tf.float32)
 
-        # initial conv layer over image+reward prior
+        # Q
+        Q0 = self.Q_network(state)
+        a0 = tf.argmax(Q0, axis=1)
+        a0 = tf.cast(a0, dtype=tf.int32)
 
-        h = tf.nn.conv2d(X, w0, name="h0", strides=(1, 1, 1, 1), padding='SAME') + bias
+        # # Combine action and state_action to get next state
+        # t_a = tflearn.fully_connected(a0, 64)
+        # t_sa = tflearn.fully_connected(MDP_snext_a, 64)
+        # next_s = tflearn.activation(tf.matmul(net,t_a.W) + tf.matmul(action, t_sa.W) + net.b + t_sa.b, activation='relu')
+        # print('a0', a0.shape)
 
-        r = tf.nn.conv2d(h, w1, name="r", strides=(1, 1, 1, 1), padding='SAME')
-        q = tf.nn.conv2d(r, w, name="q" , strides=(1, 1, 1, 1), padding='SAME')
-        v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
+        # MDP
+        # next s
+        MDP_h = conv2d_relu(state, self.w_MDP_h, bias=self.bias_MDP)
+        # next s for all possible actions
+        MDP_snext_a = conv2d_relu(MDP_h, self.w_MDP_snext_a)
 
-        for i in range(0, k-1):
-            rv = tf.concat([r, v], 3)
-            wwfb = tf.concat([w, w_fb], 2)
+        # MDP_snext_a = tf.reshape(MDP_snext_a, [MINIBATCH_SIZE * self.a_dim]+ list(self.s_dim), name=None)
 
-            q = tf.nn.conv2d(rv, wwfb, name="q", strides=(1, 1, 1, 1), padding='SAME')
-            v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
-        # do one last convolution
-        q = tf.nn.conv2d(tf.concat([r, v], 3),
-                            tf.concat([w, w_fb], 2), name="q", strides=(1, 1, 1, 1), padding='SAME')
-        xq = tf.concat([X, q], 3)
-        xq_flat = tf.contrib.layers.flatten(xq)
-        q = tf.contrib.layers.fully_connected(xq_flat, 128, activation_fn=tf.nn.relu)
-        out = tf.contrib.layers.fully_connected(q, self.a_dim, activation_fn=None)
+        print('MDP_snext_a:', MDP_snext_a.shape)
 
-        # out = tflearn.fully_connected(net, self.a_dim)
-        return X, out
+        MDP_snext_a = tf.transpose(MDP_snext_a, perm=[0, 3, 1, 2]) # put channel at second
+        a_idx = tf.stack([tf.range(0, tf.shape(a0)[0]), a0], axis=1)
+        print('a_idx:', a_idx.shape)
+
+        S1 = tf.gather_nd(MDP_snext_a, a_idx)
+        S1 = tf.reshape(S1, shape=[tf.shape(a0)[0], self.s_dim[0], self.s_dim[1], self.s_dim[2]] )
+        print('S1:', S1.shape)
+
+        # reward for current state
+        MDP_r = layers.flatten(MDP_h)
+        MDP_r = layers.fully_connected(MDP_r, num_outputs=128, activation_fn=tf.nn.relu)
+        r0 = layers.fully_connected(MDP_r, num_outputs=1, activation_fn=None)
+
+        Q1 = self.Q_network(S1)
+
+
+
+        Q_out = tf.add(r0, Q1)
+
+        return state, Q_out
 
     def train(self, inputs, action, observed_q_value):
 

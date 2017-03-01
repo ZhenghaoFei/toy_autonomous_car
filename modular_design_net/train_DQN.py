@@ -1,5 +1,6 @@
 
 import tensorflow as tf
+
 import numpy as np
 import tflearn
 # import matplotlib.pyplot as plt
@@ -87,21 +88,10 @@ class QNetwork(object):
 
     def create_Q_network(self):
         inputs = tflearn.input_data(shape=self.s_dim)
-
         net = tflearn.conv_2d(inputs, 32, 3, activation='relu', name='conv1')
         net = tflearn.layers.conv.max_pool_2d (net, 2, strides=None, padding='same', name='MaxPool2D1')
         net = tflearn.conv_2d(inputs, 64, 2, activation='relu', name='conv2')
-        # net = tflearn.conv_2d(inputs, 8, 3, activation='relu', name='conv3')
-
-        # net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv2')
         net = tflearn.fully_connected(net, 256, activation='relu')
-        # net = tflearn.layers.normalization.batch_normalization(net)
-
-        # net = tflearn.fully_connected(net, 64, activation='relu')
-        # net = tflearn.layers.normalization.batch_normalization(net)
-        # linear layer connected to 1 output representing Q(s,a) 
-        # Weights are init to Uniform[-3e-3, 3e-3]
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
         out = tflearn.fully_connected(net, self.a_dim)
         return inputs, out
 
