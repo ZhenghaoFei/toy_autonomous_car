@@ -1,7 +1,6 @@
 # This is the same as train_DQN.py, only not use tflearn,
 # switch to layers in tensorflow, should have some results as old version
-# test results: haven't test
-
+# test results: doesn't work for 8*8 but works good for 5*5, there is some bug
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 import tflearn
