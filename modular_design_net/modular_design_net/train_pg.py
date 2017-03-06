@@ -1,7 +1,5 @@
 
 import tensorflow as tf
-import tensorflow.contrib.layers as layers
-
 import numpy as np
 import tflearn
 import matplotlib.pyplot as plt
@@ -18,7 +16,6 @@ from simulator_gymstyle_old import *
 MAX_EP_STEPS = 100
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 1e-4
-LAYERS = 1
 
 # Discount factor 
 GAMMA = 0.9
@@ -28,8 +25,8 @@ TARGET_UPDATE_STEP = 100
 
 MINIBATCH_SIZE = 512
 SAVE_STEP = 50000
-EPS_MIN = 0.05
-EPS_DECAY_RATE = 0.9999
+EPS_MIN = 0.0
+EPS_DECAY_RATE = 0
 # ===========================
 #   Utility Parameters
 # ===========================
@@ -37,18 +34,12 @@ EPS_DECAY_RATE = 0.9999
 MAP_SIZE  = 5
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
-SUMMARY_DIR = './results_pg_mdp_' + str(LAYERS) + "l_com/"
+SUMMARY_DIR = './results_pg/'
 RANDOM_SEED = 1234
 # Size of replay buffer
-BUFFER_SIZE = 1000000
+BUFFER_SIZE = 10000
 EVAL_EPISODES = 100
 
-# ===========================
-#   MDP DNN
-# ===========================
-def conv2d_relu(X, W, bias=0):
-    net = tf.nn.conv2d(X, W, strides=(1, 1, 1, 1), padding='SAME') + bias
-    return tf.nn.relu(net)
 
 # ===========================
 #   Actor and Critic DNNs
@@ -59,12 +50,11 @@ class ActorNetwork(object):
     under a policy.
 
     """
-    def __init__(self, sess, state_dim, action_dim, learning_rate, gamma, layers):
+    def __init__(self, sess, state_dim, action_dim, learning_rate):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        self.gamma = gamma
-        self.layers = layers
+
         self.learning_rate = learning_rate
 
         # Actor Network
@@ -86,89 +76,23 @@ class ActorNetwork(object):
         self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
         self.optimize = self.optimizer.minimize(loss)
 
-    def MDP_network(self, input, action, feature_dim):
-        # hidden layer
-        MDP_h = tf.nn.relu(tf.add(tf.matmul(input, self.w_MDP_h), self.bias_MDP))
-
-        # state transition
-        MDP_snext_a = tf.nn.relu(tf.matmul(MDP_h, self.w_MDP_snext_a))
-        MDP_snext_a = tf.reshape(MDP_snext_a, [tf.shape(action)[0], feature_dim, self.a_dim])
-        MDP_snext_a = tf.transpose(MDP_snext_a, perm=[0, 2, 1]) # put channel at second
-        a_idx = tf.stack([tf.range(0, tf.shape(action)[0]), action], axis=1)
-        S_next = tf.gather_nd(MDP_snext_a, a_idx)
-
-        # reward for current state
-        MDP_r1 = tf.nn.relu(tf.matmul(MDP_h, self.w_MDP_r1))
-        MDP_r2 = tf.nn.relu(tf.matmul(MDP_r1, self.w_MDP_r2))
-        r_current = tf.nn.relu(tf.matmul(MDP_r2, self.w_MDP_r_out))
-
-        return S_next, r_current
-
-    def Q_network(self, state):
-        net = tf.nn.relu(tf.add(tf.matmul(state, self.w_Q1), self.bias_Q))
-        net = tf.nn.relu(tf.matmul(net, self.w_Q2))
-        out = tf.nn.relu(tf.matmul(net, self.w_Qout))
-        return out
-
-    def sensor_network(self, input, feature_dim):
-        # compress input state into feature dim
-        net = tflearn.conv_2d(input, 128, 3, activation='relu', name='conv1')
-        net = tflearn.layers.conv.max_pool_2d (net, 2, strides=None, padding='same', name='MaxPool2D1')
-        net = tflearn.conv_2d(net, 64, 2, activation='relu', name='conv2')
-        net = tflearn.fully_connected(net, 128, activation='relu')
-        out = tflearn.fully_connected(net, feature_dim, activation='relu')
-        return out
-
     def create_actor_network(self): 
-        state = tf.placeholder(tf.float32, shape = ([None] + list(self.s_dim)))
-        gamma = tf.constant(self.gamma, tf.float32)
-        Q_out = tf.zeros([tf.shape(state)[0], self.a_dim], tf.float32)
-        feature_dim = 128
-        # weights for MDP module
-        m_ch = 150
-        m_ch_r1 = 128
-        m_ch_r2 = 64
-        self.bias_MDP  = tf.Variable(np.random.randn(1, m_ch)    * 0.01, dtype=tf.float32)
-        self.w_MDP_h = tf.Variable(np.random.randn(feature_dim, m_ch) * 0.01, dtype=tf.float32)
-        self.w_MDP_snext_a = tf.Variable(np.random.randn(m_ch, feature_dim * self.a_dim)    * 0.01, dtype=tf.float32)
-        self.w_MDP_r1 = tf.Variable(np.random.randn(m_ch, m_ch_r1)    * 0.01, dtype=tf.float32)
-        self.w_MDP_r2 = tf.Variable(np.random.randn(m_ch_r1, m_ch_r2)    * 0.01, dtype=tf.float32)
-        self.w_MDP_r_out = tf.Variable(np.random.randn(m_ch_r2, 1)    * 0.01, dtype=tf.float32)
+        inputs = tflearn.input_data(shape=[None, self.s_dim[0], self.s_dim[1], 1])
+        net = tflearn.conv_2d(inputs, 16, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv1')
+        net = tflearn.conv_2d(net, 16, 3, activation='relu', name='conv1')
 
-        # weights for Q network
-        q_ch1 = 32
-        q_ch2 = 64
-        self.bias_Q  = tf.Variable(np.random.randn(1, q_ch1)    * 0.01, dtype=tf.float32)
-        self.w_Q1  = tf.Variable(np.random.randn(feature_dim, q_ch1)    * 0.01, dtype=tf.float32)
-        self.w_Q2  = tf.Variable(np.random.randn(q_ch1, q_ch2)    * 0.01, dtype=tf.float32)
-        self.w_Qout  = tf.Variable(np.random.randn(q_ch2, self.a_dim)    * 0.01, dtype=tf.float32)
-
-        # features
-        state_feature = self.sensor_network(state, feature_dim)
-        for i in range(self.layers):
-            # Q
-            Q = self.Q_network(state_feature)
-            a = tf.argmax(Q, axis=1)
-            a = tf.cast(a, dtype=tf.int32)
-            # MDP
-            state_feature, r0 = self.MDP_network(state_feature, a, feature_dim)
-            Q_next = self.Q_network(state_feature)
-            # bellman equation
-            Q_out = tf.add(Q_out, tf.multiply(r0, tf.pow(gamma, i)))
-
-        Q_out = tf.add(r0, tf.multiply(Q_next, tf.pow(gamma, self.layers-1)))
-
-        # polocy net
-        net = tflearn.fully_connected(Q_out, 32, activation='relu')
-        net = tflearn.fully_connected(net, self.a_dim, activation='relu')
-
+        net = tflearn.fully_connected(net, 128, activation='relu')
+        net = tflearn.fully_connected(net, 64, activation='relu')
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
         logits = tflearn.fully_connected(net, self.a_dim, activation='tanh', weights_init=w_init)
+
         actions_out = tf.reshape(tf.multinomial(logits, 1), [])
+
         log_prob = tf.log(tf.nn.softmax(logits))
 
-        return state, actions_out, log_prob
+        return inputs, actions_out, log_prob
 
     def train(self, states, actions_in, advantages):
         # print("actor global step: ", self.actor_global_step.eval())
@@ -355,7 +279,7 @@ def main(_):
         print('action_dim:',action_dim)
 
 
-        actor = ActorNetwork(sess, state_dim, action_dim, ACTOR_LEARNING_RATE, GAMMA, LAYERS)
+        actor = ActorNetwork(sess, state_dim, action_dim, ACTOR_LEARNING_RATE)
 
         train(sess, env, actor, global_step)
 

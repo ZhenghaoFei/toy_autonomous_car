@@ -18,7 +18,7 @@ from simulator_gymstyle_old import *
 MAX_EP_STEPS = 100
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 1e-4
-LAYERS = 1
+LAYERS = 5
 
 # Discount factor 
 GAMMA = 0.9
