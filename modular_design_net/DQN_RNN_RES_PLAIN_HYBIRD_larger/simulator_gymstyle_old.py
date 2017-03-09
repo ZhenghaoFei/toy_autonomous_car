@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+# import matplotlib.pyplot as plt
+# import matplotlib.animation as animation
 
 FIX_STARTEND = False
 class sim_env(object):

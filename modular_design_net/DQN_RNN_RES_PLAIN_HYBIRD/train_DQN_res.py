@@ -33,7 +33,7 @@ EPS_DECAY_RATE = 0.9999
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 8
+MAP_SIZE  = 16
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
 SUMMARY_DIR = './results_dqn_res/'
@@ -181,7 +181,7 @@ def train(sess, env, Qnet, global_step):
     eps = 1
     while True:
         i += 1
-        eps *= EPS_DECAY_RATE
+        eps = EPS_DECAY_RATE**i
         eps = max(eps, EPS_MIN)
         s = env.reset()
         # plt.imshow(s, interpolation='none')

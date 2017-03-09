@@ -33,10 +33,10 @@ EPS_DECAY_RATE = 0.9999
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 8
+MAP_SIZE  = 16
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
-SUMMARY_DIR = './results_dqn_plain/'
+SUMMARY_DIR = './results_dqn_plain_match/'
 RANDOM_SEED = 1234
 # Size of replay buffer
 BUFFER_SIZE = 100000
@@ -88,10 +88,20 @@ class QNetwork(object):
 
 
     def create_Q_network(self):
-        inputs = tflearn.input_data(shape=self.s_dim)
-        net = tflearn.conv_2d(inputs, 32, 3, activation='relu', name='conv1')
-        net = tflearn.layers.conv.max_pool_2d (net, 2, strides=None, padding='same', name='MaxPool2D1')
-        net = tflearn.conv_2d(inputs, 64, 2, activation='relu', name='conv2')
+        inputs = tflearn.input_data(shape=[None, self.s_dim[0], self.s_dim[1], 1])
+        features = tflearn.conv_2d(inputs, 16, 3, activation='relu', name='conv1')
+        features = tflearn.conv_2d(features, 16, 3, activation='relu', name='conv1')
+        features = tflearn.conv_2d(features, 16, 3, activation='relu', name='conv1')
+
+        # res
+        features_res = tflearn.layers.core.flatten(features, name='features_res')
+
+        net = tflearn.fully_connected(features_res, 128, activation='relu', name='net')
+
+        fc1 = tflearn.fully_connected(net, 64, activation='relu', name='fc1')
+        fc2 = tflearn.fully_connected(fc1, 128, name='fc2')
+        net = tflearn.fully_connected(fc2, 128, name='fc_res')
+
         net = tflearn.fully_connected(net, 256, activation='relu')
         out = tflearn.fully_connected(net, self.a_dim)
         return inputs, out
@@ -169,7 +179,7 @@ def train(sess, env, Qnet, global_step):
     eps = 1
     while True:
         i += 1
-        eps *= EPS_DECAY_RATE
+        eps = EPS_DECAY_RATE**i
         eps = max(eps, EPS_MIN)
         s = env.reset()
         # plt.imshow(s, interpolation='none')

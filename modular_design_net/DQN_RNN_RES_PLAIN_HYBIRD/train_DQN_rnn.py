@@ -1,5 +1,6 @@
 
 import tensorflow as tf
+
 import numpy as np
 import tflearn
 # import matplotlib.pyplot as plt
@@ -19,6 +20,7 @@ MAX_EP_STEPS = 100
 Q_LEARNING_RATE = 1e-3
 # Discount factor 
 GAMMA = 0.9
+LAYERS = 7
 # Soft target update param
 TAU = 0.001
 TARGET_UPDATE_STEP = 100
@@ -31,10 +33,10 @@ EPS_DECAY_RATE = 0.9999
 #   Utility Parameters
 # ===========================
 # map size
-MAP_SIZE  = 8
+MAP_SIZE  = 16
 PROBABILITY = 0.1
 # Directory for storing tensorboard summary results
-SUMMARY_DIR = './results_dqn_vin/'
+SUMMARY_DIR = './results_dqn_rnn/'
 RANDOM_SEED = 1234
 # Size of replay buffer
 BUFFER_SIZE = 100000
@@ -50,13 +52,13 @@ class QNetwork(object):
     The action must be obtained from the output of the Actor network.
 
     """
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau):
+    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, layers):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
         self.learning_rate = learning_rate
         self.tau = tau
-
+        self.layers = layers
         # Create the Qnet network
         self.inputs, self.out = self.create_Q_network()
 
@@ -86,16 +88,27 @@ class QNetwork(object):
 
 
     def create_Q_network(self):
-        X = tflearn.input_data(shape=self.s_dim)
-        out = layers.convolution2d(X, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
+        inputs = tflearn.input_data(shape=[None, self.s_dim[0], self.s_dim[1], 1])
+        features = tflearn.conv_2d(inputs, 16, 3, activation='relu', name='conv1')
+        features = tflearn.conv_2d(features, 16, 3, activation='relu', name='conv1')
+        features = tflearn.conv_2d(features, 16, 3, activation='relu', name='conv1')
 
-        for i in range(10):
-            out = layers.convolution2d(out, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
-            out = layers.convolution2d(out, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
-        out = layers.fully_connected(out, num_outputs=512,         activation_fn=tf.nn.relu)
-        out = layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
-        
-        return X, out
+        # rnn
+        features_rnn = tflearn.layers.core.flatten(features)
+        fc1 = tflearn.fully_connected(features_rnn, 128)
+        fc2 = tflearn.fully_connected(fc1, 64)
+        fc_fb = tflearn.fully_connected(fc2, 128)
+
+        net = tflearn.activation(tf.matmul(features_rnn,fc1.W) + fc1.b, activation='relu')
+        for i in range(self.layers - 1):
+            net = tflearn.activation(tf.matmul(net,fc2.W) + fc2.b, activation='relu')
+            net = tflearn.activation(tf.matmul(net,fc_fb.W) + tf.matmul(features_rnn, fc1.W) + fc_fb.b + fc1.b, activation='relu')
+        net = tflearn.activation(tf.matmul(net,fc2.W) + fc2.b, activation='relu')
+
+
+        net = tflearn.fully_connected(net, 256, activation='relu')
+        out = tflearn.fully_connected(net, self.a_dim)
+        return inputs, out
 
     def train(self, inputs, action, observed_q_value):
 
@@ -298,7 +311,7 @@ def main(_):
 
 
         Qnet = QNetwork(sess, state_dim, action_dim, \
-            Q_LEARNING_RATE, TAU)
+            Q_LEARNING_RATE, TAU, LAYERS)
 
 
         train(sess, env, Qnet, global_step)
